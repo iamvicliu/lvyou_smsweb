@@ -204,6 +204,37 @@ class BatchSimReq(BaseModel):
     sim2: str = ""
 
 
+SIM_LABEL_MAX = 32
+_SIM_PHONE_RE = re.compile(r"^\+?[0-9]{5,15}$")
+
+
+def _clean_sim_value(value: str) -> str:
+    return str(value or "").strip()
+
+
+def _sim_number_for_board(value: str) -> str:
+    """Return a board-ready number, or "" when the field is a label.
+
+    The firmware's ``simNPhnum`` is a phone-number field. Writing a label such
+    as "giffgaff" there is meaningless, so labels stay panel-only.
+    """
+    compact = re.sub(r"[\s-]", "", _clean_sim_value(value))
+    return compact if _SIM_PHONE_RE.match(compact) else ""
+
+
+def _sim_board_payload(sim1: str, sim2: str) -> Optional[Dict[str, str]]:
+    """Build the board payload, or skip it when either slot is a label.
+
+    ``updatePhnum`` writes both slots at once. If one slot is a label, leaving
+    it out would clear whatever number the board already had, so the whole
+    sync is skipped and the panel keeps the label locally.
+    """
+    one, two = _clean_sim_value(sim1), _clean_sim_value(sim2)
+    if (one and not _sim_number_for_board(one)) or (two and not _sim_number_for_board(two)):
+        return None
+    return {"sim1Phnum": _sim_number_for_board(one), "sim2Phnum": _sim_number_for_board(two)}
+
+
 class BatchConfigReadReq(BaseModel):
     device_ids: List[int]
 
@@ -802,12 +833,15 @@ def _sim_task_sync(device_info: Dict[str, Any], sim1: str, sim2: str) -> Dict[st
     ip = device_info["ip"]
     user = device_info["user"]
     pw = device_info["pw"]
+    payload = _sim_board_payload(sim1, sim2)
+    if payload is None:
+        return {"id": device_info["id"], "ip": ip, "ok": True, "skipped": True}
     try:
         _ensure_device_ip_allowed_raise(ip)
         resp = _get_sync_client().post(
             f"http://{ip}/mgr",
             params={"a": "updatePhnum"},
-            data={"sim1Phnum": sim1, "sim2Phnum": sim2},
+            data=payload,
             auth=httpx.DigestAuth(user, pw),
             timeout=TIMEOUT + 5,
         )
@@ -822,20 +856,23 @@ def _sim_task_sync(device_info: Dict[str, Any], sim1: str, sim2: str) -> Dict[st
 @router.post("/api/devices/batch/sim")
 def api_batch_sim(req: BatchSimReq, db: Session = Depends(get_db)):
     _check_batch_size(req.device_ids)
+    sim1, sim2 = _clean_sim_value(req.sim1), _clean_sim_value(req.sim2)
+    if len(sim1) > SIM_LABEL_MAX or len(sim2) > SIM_LABEL_MAX:
+        raise HTTPException(status_code=400, detail=f"卡号或标签最多 {SIM_LABEL_MAX} 个字符")
     devices = db.query(Device).filter(Device.id.in_(req.device_ids)).all()
     infos = [_device_conn_info(d) for d in devices]
     if not infos:
         return {"results": []}
     executor = _get_shared_executor()
-    results = list(executor.map(lambda info: _sim_task_sync(info, req.sim1, req.sim2), infos))
+    results = list(executor.map(lambda info: _sim_task_sync(info, sim1, sim2), infos))
     ok_ids = [r["id"] for r in results if r.get("ok")]
     if ok_ids:
         dev_map = {d.id: d for d in db.query(Device).filter(Device.id.in_(ok_ids)).all()}
         for dev_id in ok_ids:
             dev = dev_map.get(dev_id)
             if dev:
-                dev.sim1number = req.sim1
-                dev.sim2number = req.sim2
+                dev.sim1number = sim1
+                dev.sim2number = sim2
         db.commit()
     return {"results": results}
 
@@ -848,29 +885,35 @@ def api_set_sim(devid: int, req: SimReq, db: Session = Depends(get_db)):
     device = db.query(Device).filter(Device.id == devid).first()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
+    sim1, sim2 = _clean_sim_value(req.sim1), _clean_sim_value(req.sim2)
+    if len(sim1) > SIM_LABEL_MAX or len(sim2) > SIM_LABEL_MAX:
+        raise HTTPException(status_code=400, detail=f"卡号或标签最多 {SIM_LABEL_MAX} 个字符")
     ip = device.ip
     _ensure_device_ip_allowed_raise(ip)
     user, pw = device_credential(device)
-    board_state = "updated"
-    try:
-        resp = _get_sync_client().post(
-            f"http://{ip}/mgr",
-            params={"a": "updatePhnum"},
-            data={"sim1Phnum": req.sim1, "sim2Phnum": req.sim2},
-            auth=httpx.DigestAuth(user, pw),
-            timeout=TIMEOUT + 5,
-        )
-        if resp.status_code != 200:
-            board_state = f"http_{resp.status_code}"
-    except HTTPException:
-        raise
-    except Exception as exc:
-        board_state = "unreachable"
-        logger.warning("set sim on board failed device=%s: %s", devid, exc)
+    payload = _sim_board_payload(sim1, sim2)
+    board_state = "label"
+    if payload is not None:
+        board_state = "updated"
+        try:
+            resp = _get_sync_client().post(
+                f"http://{ip}/mgr",
+                params={"a": "updatePhnum"},
+                data=payload,
+                auth=httpx.DigestAuth(user, pw),
+                timeout=TIMEOUT + 5,
+            )
+            if resp.status_code != 200:
+                board_state = f"http_{resp.status_code}"
+        except HTTPException:
+            raise
+        except Exception as exc:
+            board_state = "unreachable"
+            logger.warning("set sim on board failed device=%s: %s", devid, exc)
     # The panel needs the number for alerts even when the board is offline or
     # refuses the write, so persist it locally in every case.
-    device.sim1number = req.sim1.strip()
-    device.sim2number = req.sim2.strip()
+    device.sim1number = sim1
+    device.sim2number = sim2
     db.commit()
     return {"ok": True, "board": board_state}
 

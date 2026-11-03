@@ -68,7 +68,9 @@ export function useDetail() {
         sim2: deviceDetail.value.device.sim2number || ''
       })
       const board = res.data && res.data.board
-      setNotice(board === 'updated' ? '已保存卡号' : '已保存到面板（板子暂时没同步）', 'ok')
+      if (board === 'updated') setNotice('已保存，卡号已同步到板子', 'ok')
+      else if (board === 'label') setNotice('已保存标签（只存面板，不写入板子）', 'ok')
+      else setNotice('已保存到面板（板子暂时没同步）', 'ok')
       await devicesStore.refresh()
     } catch (e) {
       setNotice(errText(e, '保存失败'), 'err')

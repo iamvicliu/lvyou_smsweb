@@ -694,8 +694,13 @@ def _slot_index(slot: str) -> str:
 
 def _display_sim(slot: str, sim_number: str = "") -> str:
     label = f"卡{_slot_index(slot)}"
-    digits = re.sub(r"[^0-9+]", "", sim_number or "")
-    return f"{label} · 本机 {digits}" if len(digits) >= 5 else label
+    raw = re.sub(r"\s+", " ", str(sim_number or "").strip())
+    digits = re.sub(r"[^0-9+]", "", raw)
+    if len(digits) >= 5:
+        return f"{label} · 本机 {digits}"
+    # A SIM field may hold a short label ("giffgaff", "广电") instead of a
+    # number. Show it as the slot name so alerts still identify the card.
+    return f"{label} · {raw[:16]}" if raw else label
 
 
 def _pick_sim_number(device: Optional[Device], slot: str, value: Any = "") -> str:

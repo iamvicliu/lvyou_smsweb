@@ -18,21 +18,21 @@
               {{ device.status === 'online' ? '在线' : '离线' }}
             </span>
           </div>
-          <div class="detail-item"><span class="detail-label">SIM1 号码</span><span class="mono">{{ device.sim1number || '-' }}</span></div>
+          <div class="detail-item"><span class="detail-label">SIM1 号码 / 标签</span><span class="mono">{{ device.sim1number || '-' }}</span></div>
           <div class="detail-item"><span class="detail-label">SIM1 运营商</span><span>{{ device.sim1operator || '-' }}</span></div>
-          <div class="detail-item"><span class="detail-label">SIM2 号码</span><span class="mono">{{ device.sim2number || '-' }}</span></div>
+          <div class="detail-item"><span class="detail-label">SIM2 号码 / 标签</span><span class="mono">{{ device.sim2number || '-' }}</span></div>
           <div class="detail-item"><span class="detail-label">SIM2 运营商</span><span>{{ device.sim2operator || '-' }}</span></div>
           <div class="detail-item"><span class="detail-label">WiFi 名称</span><span>{{ device.wifiName || '-' }}</span></div>
           <div class="detail-item"><span class="detail-label">信号强度</span><span :style="{ color: wifiDbmColor(device.wifiDbm) }">{{ wifiDbmLabel(device.wifiDbm) }}</span></div>
         </div>
         <div class="sim-edit-section">
           <p class="sim-edit-title">编辑 SIM 卡号</p>
-          <input :value="device.sim1number || ''" class="form-input" placeholder="SIM1 号码" @input="emit('update-sim1', $event.target.value)" />
-          <input :value="device.sim2number || ''" class="form-input" placeholder="SIM2 号码" @input="emit('update-sim2', $event.target.value)" />
+          <input :value="device.sim1number || ''" class="form-input" maxlength="32" placeholder="SIM1 号码或标签，如 138… 或 移动保号" @input="emit('update-sim1', $event.target.value)" />
+          <input :value="device.sim2number || ''" class="form-input" maxlength="32" placeholder="SIM2 号码或标签，如 138… 或 giffgaff" @input="emit('update-sim2', $event.target.value)" />
           <div class="sim-edit-actions">
             <button class="btn-confirm" :disabled="loading" @click="emit('save')">保存卡号</button>
           </div>
-          <p class="sim-edit-hint">运营商的卡一般不在卡里存本机号码，号码要手动填，或下面用快速拨打查出来再填。</p>
+          <p class="sim-edit-hint">填纯号码会显示为“本机 …”并同步到板子；填中英文会当作标签显示在通知里，只存面板，不写入板子。最多 32 个字符。</p>
         </div>
         <div class="sim-edit-section">
           <p class="sim-edit-title">快速拨打（查这张卡的本机号码）</p>
