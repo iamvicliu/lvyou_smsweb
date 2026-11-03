@@ -764,13 +764,17 @@ def _display_sim(slot: str, sim_number: str = "") -> str:
 
 
 def _pick_sim_number(device: Optional[Device], slot: str, value: Any = "") -> str:
-    number = str(value or "").strip()
-    if number:
-        return number
-    if device is None:
-        return ""
-    attr = "sim1number" if _slot_index(slot) == "1" else "sim2number"
-    return str(getattr(device, attr, "") or "")
+    """Return the label to show in alerts, preferring what the panel stores.
+
+    The panel field is the operator's source of truth and may hold a number
+    plus a carrier/plan label; a push only carries a bare MSISDN. Prefer the
+    stored value and fall back to the pushed number for a field still empty.
+    """
+    stored = ""
+    if device is not None:
+        attr = "sim1number" if _slot_index(slot) == "1" else "sim2number"
+        stored = str(getattr(device, attr, "") or "").strip()
+    return stored or str(value or "").strip()
 
 
 def _learn_sim_number(db: Optional[Session], device: Optional[Device], slot: str,
