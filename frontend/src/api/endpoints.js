@@ -141,10 +141,6 @@ export function reorderDevices(ids) {
   return api.post('/api/devices/reorder', { ids })
 }
 
-export function setDeviceNote(deviceId, note) {
-  return api.post('/api/devices/' + deviceId + '/note', { note })
-}
-
 export function deleteDeviceById(deviceId) {
   return api.delete('/api/devices/' + deviceId)
 }

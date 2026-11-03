@@ -25,6 +25,11 @@ function isSelected(id) {
   return props.selectedIds.includes(id)
 }
 
+function openDetail(device) {
+  if (props.sortMode) return
+  showDetail(device)
+}
+
 function handleDragStart(e, device) {
   dragDevice.value = device
   e.dataTransfer.effectAllowed = 'move'
@@ -84,6 +89,7 @@ function handleDrop(e, targetDevice) {
         'drag-over': dragOverId === d.id
       }"
       draggable="true"
+      @click="openDetail(d)"
       @dragstart="handleDragStart($event, d)"
       @dragend="handleDragEnd"
       @dragover="handleDragOver($event, d)"
@@ -91,7 +97,7 @@ function handleDrop(e, targetDevice) {
       @drop="handleDrop($event, d)"
     >
       <div class="card-header">
-        <div class="card-checkbox" @click="emit('toggle-select', d.id)">
+        <div class="card-checkbox" @click.stop="emit('toggle-select', d.id)">
           <span :class="['checkbox', { checked: isSelected(d.id) }]">✓</span>
         </div>
         <div class="card-status" :class="d.status">
@@ -126,22 +132,21 @@ function handleDrop(e, targetDevice) {
           <span class="device-group">{{ d.grp || 'auto' }}</span>
           <span class="device-time">{{ prettyTime(d.lastSeen) }}</span>
         </div>
-        <div v-if="d.note" class="device-note" :title="d.note">{{ d.note }}</div>
       </div>
 
       <div class="card-actions">
-        <button v-if="sortMode" class="card-btn" @click="emit('move-up', d)" title="上移" aria-label="上移">↑</button>
-        <button v-if="sortMode" class="card-btn" @click="emit('move-down', d)" title="下移" aria-label="下移">↓</button>
-        <button class="card-btn" @click="showDetail(d)" title="详情" aria-label="详情">
+        <button v-if="sortMode" class="card-btn" @click.stop="emit('move-up', d)" title="上移" aria-label="上移">↑</button>
+        <button v-if="sortMode" class="card-btn" @click.stop="emit('move-down', d)" title="下移" aria-label="下移">↓</button>
+        <button class="card-btn" @click.stop="showDetail(d)" title="详情" aria-label="详情">
           <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/></svg>
         </button>
-        <button class="card-btn" @click="emit('rename', d)" title="改名" aria-label="改名">
+        <button class="card-btn" @click.stop="emit('rename', d)" title="改名" aria-label="改名">
           <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
         </button>
-        <button class="card-btn" @click="emit('set-group', d)" title="分组" aria-label="分组">
+        <button class="card-btn" @click.stop="emit('set-group', d)" title="分组" aria-label="分组">
           <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
         </button>
-        <button class="card-btn danger" @click="emit('delete', d)" title="删除" aria-label="删除">
+        <button class="card-btn danger" @click.stop="emit('delete', d)" title="删除" aria-label="删除">
           <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
         </button>
       </div>

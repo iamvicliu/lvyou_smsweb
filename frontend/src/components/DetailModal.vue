@@ -49,18 +49,6 @@
           </div>
           <p class="sim-edit-hint">你手机上的来电号码就是这张卡的号码，填到上面点“保存卡号”。通话 20 秒后自动挂断。</p>
         </div>
-        <div class="sim-edit-section">
-          <p class="sim-edit-title">备注（套餐、月租、用途等）</p>
-          <textarea
-            :value="device.note || ''"
-            class="form-input note-input"
-            rows="3"
-            maxlength="300"
-            placeholder="例如：移动 19 元 100G，主收验证码"
-            @input="emit('update-note', $event.target.value)"
-          ></textarea>
-          <button class="btn-confirm" :disabled="loading" @click="emit('save-note')">保存备注</button>
-        </div>
       </div>
       <div class="modal-footer">
         <button class="btn-cancel" @click="emit('close')">关闭</button>
@@ -79,7 +67,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'close', 'save', 'update-sim1', 'update-sim2', 'update-note', 'save-note',
+  'close', 'save', 'update-sim1', 'update-sim2',
   'update-myphone', 'quick-dial'
 ])
 

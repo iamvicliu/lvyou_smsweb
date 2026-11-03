@@ -134,11 +134,9 @@
       :my-phone="myPhone"
       @update-sim1="updateDetailSim('sim1number', $event)"
       @update-sim2="updateDetailSim('sim2number', $event)"
-      @update-note="updateDetailNote"
       @update-myphone="setMyPhone"
       @quick-dial="quickDial"
       @save="saveSimSingle"
-      @save-note="saveNote"
       @close="closeDetailModal"
     />
 
@@ -231,8 +229,6 @@ const {
   closeDetailModal,
   saveSimSingle,
   updateDetailSim,
-  updateDetailNote,
-  saveNote,
   quickDial
 } = useDetail()
 

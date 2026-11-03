@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 
-import { dialDevice, fetchDeviceDetail, saveDeviceSim, setDeviceNote } from '../api/endpoints'
+import { dialDevice, fetchDeviceDetail, saveDeviceSim } from '../api/endpoints'
 import { useDevicesStore } from '../stores'
 import { useLoading } from './useLoading'
 import { useNotice } from './useNotice'
@@ -85,27 +85,6 @@ export function useDetail() {
     }
   }
 
-  function updateDetailNote(value) {
-    if (deviceDetail.value && deviceDetail.value.device) {
-      deviceDetail.value.device.note = value
-    }
-  }
-
-  async function saveNote() {
-    const device = deviceDetail.value && deviceDetail.value.device
-    if (!device) return
-    loading.value = true
-    try {
-      await setDeviceNote(device.id, device.note || '')
-      setNotice('已保存备注', 'ok')
-      await devicesStore.refresh()
-    } catch (e) {
-      setNotice(errText(e, '保存备注失败'), 'err')
-    } finally {
-      loading.value = false
-    }
-  }
-
   // Dial the operator's own phone from one slot: the caller ID on the phone is
   // the SIM's number, which is the only reliable way to read it when the
   // carrier does not store MSISDN on the card. 20s cap so an unanswered call
@@ -149,8 +128,6 @@ export function useDetail() {
     closeDetailModal,
     saveSimSingle,
     updateDetailSim,
-    updateDetailNote,
-    saveNote,
     quickDial
   }
 }
