@@ -63,6 +63,12 @@ KEY_BARK_URL = "bark_url"
 
 POLL_INTERVAL_SECONDS = 60
 SMS_FETCH_LIMIT = 50
+# A board keeps its last "online" flag until a poll actually reaches it. Three
+# consecutive unreachable polls (~3 min at the 60 s interval) is long enough to
+# survive a router hiccup or a one-minute reboot, short enough that a pulled
+# power plug shows up quickly.
+OFFLINE_AFTER_FAILS = 3
+_poll_failures: Dict[str, int] = {}
 
 
 def _now_str() -> str:
@@ -221,11 +227,16 @@ def poll_device(db: Session, device: Device) -> Dict[str, int]:
         token = ensure_device_token(db, device)
     except Exception as exc:
         logger.debug("poll %s: no token (%s)", device.ip, exc)
-        return {"sms": 0, "calls": 0}
+        return {"sms": 0, "calls": 0, "ok": False}
 
     for slot in ("1", "2"):
         res = device_call(device.ip, token, "querysms", {"p1": "0", "p2": str(SMS_FETCH_LIMIT), "p4": slot})
         if res.get("code") != 0:
+            # code -1 is device_call's transport failure: the board did not
+            # answer at all. Stop here instead of burning two more timeouts on
+            # the second slot and the call list.
+            if res.get("code") == -1:
+                return {"sms": added_sms, "calls": added_calls, "ok": False}
             continue
         results = res.get("results")
         if not isinstance(results, list):
@@ -255,6 +266,7 @@ def poll_device(db: Session, device: Device) -> Dict[str, int]:
                            sim_number=sim_number)
 
     res = device_call(device.ip, token, "querytel", {"p1": "1", "p2": "50"}, timeout=12)
+    reachable = res.get("code") != -1
     if res.get("code") == 0 and isinstance(res.get("results"), list):
         for rec in res["results"]:
             start = int(rec.get("telStartTs") or 0)
@@ -282,7 +294,25 @@ def poll_device(db: Session, device: Device) -> Dict[str, int]:
             )
             if inserted:
                 added_calls += 1
-    return {"sms": added_sms, "calls": added_calls}
+    return {"sms": added_sms, "calls": added_calls, "ok": reachable}
+
+
+def _track_reachability(device: Device, ok: bool) -> None:
+    """Flip the stored status after repeated unreachable polls.
+
+    Success also refreshes lastSeen, so the device list can show how stale a
+    board is instead of only online/offline.
+    """
+    key = device.devId or device.ip
+    if ok:
+        _poll_failures.pop(key, None)
+        device.status = "online"
+        device.lastSeen = int(time.time())
+        return
+    fails = _poll_failures.get(key, 0) + 1
+    _poll_failures[key] = fails
+    if fails >= OFFLINE_AFTER_FAILS:
+        device.status = "offline"
 
 
 def poll_all() -> Dict[str, Any]:
@@ -296,9 +326,16 @@ def poll_all() -> Dict[str, Any]:
                 got = poll_device(db, device)
                 totals["sms"] += got["sms"]
                 totals["calls"] += got["calls"]
+                _track_reachability(device, bool(got.get("ok")))
             except Exception:
                 db.rollback()
+                _track_reachability(device, False)
                 logger.debug("poll device %s failed", device.ip, exc_info=True)
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+                logger.debug("poll commit failed for %s", device.ip, exc_info=True)
     finally:
         db.close()
     return totals
@@ -390,6 +427,16 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
         return {"status": "bad_request"}
     dev_id = str(data.get("devId") or "")
     device = _find_device(db, dev_id, source_ip)
+    if device is not None:
+        # A push is proof of life: clear the poll failure counter so a board
+        # that just rebooted does not stay marked offline until the next poll.
+        _poll_failures.pop(device.devId or device.ip, None)
+        device.status = "online"
+        device.lastSeen = int(time.time())
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
     label = device_label(device) if device else (dev_id or source_ip or "unknown")
 
     if msg_type in (501, 502):
