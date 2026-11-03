@@ -757,7 +757,10 @@ def _display_sim(slot: str, sim_number: str = "") -> str:
     raw = re.sub(r"\s+", " ", str(sim_number or "").strip())
     digits = re.sub(r"[^0-9+]", "", raw)
     if len(digits) >= 5:
-        return f"{label} · 本机 {digits}"
+        # The field may be "<number><carrier/plan label>"; keep the label so a
+        # card marked "待恢复" is still recognisable in the notification.
+        tail = re.sub(r"[0-9+\s]", "", raw).strip(" -_/|·")[:12]
+        return f"{label} · 本机 {digits}" + (f" {tail}" if tail else "")
     # A SIM field may hold a short label ("giffgaff", "广电") instead of a
     # number. Show it as the slot name so alerts still identify the card.
     return f"{label} · {raw[:16]}" if raw else label
