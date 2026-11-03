@@ -345,9 +345,41 @@ def poll_all() -> Dict[str, Any]:
 
 CALL_EVENT_TYPES = {601, 602, 603, 620, 621, 622, 623}
 
+# 204 = SIM ready, 205 = SIM removed, 209 = SIM init failed. The board sends
+# these with the slot only (204 additionally carries imsi/dbm/msIsdn), which
+# is enough to keep the card state on the dashboard current without a scan.
+SIM_STATE_EVENTS = {204, 205, 209}
+
+# MCC/MNC -> carrier name. 204 has no operator field, so the label has to be
+# derived from the leading five digits of the IMSI.
+_PLMN_NAMES = {
+    "46000": "移动", "46002": "移动", "46004": "移动",
+    "46007": "移动", "46008": "移动",
+    "46001": "联通", "46006": "联通", "46009": "联通",
+    "46003": "电信", "46005": "电信", "46011": "电信",
+    "46015": "广电",
+}
+
 _LOCAL_PHONE_RE = re.compile(r"号码[：:]\s*([+0-9]+)")
 _LOCAL_DEV_RE = re.compile(r"来自设备[：:]\s*([0-9A-Za-z_-]+)")
 _LOCAL_SLOT_RE = re.compile(r"卡\s*(\d)")
+
+
+def _plmn_operator(imsi: Any, dbm: Any) -> str:
+    """Build the dashboard's ``移动(46000) 84%`` label from a 204 push."""
+    plmn = str(imsi or "")[:5]
+    if len(plmn) != 5 or not plmn.isdigit():
+        return ""
+    name = _PLMN_NAMES.get(plmn, "")
+    try:
+        sig = int(dbm)
+    except (TypeError, ValueError):
+        sig = -1
+    # -1 means the modem has not measured a signal yet; keep the carrier
+    # visible without inventing a percentage.
+    if sig >= 0:
+        return f"{name or '未知'}({plmn}) {sig}%"
+    return f"{name}({plmn})" if name else f"({plmn})"
 
 
 def _find_device(db: Session, dev_id: str, source_ip: str = "") -> Optional[Device]:
@@ -438,6 +470,34 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
         except Exception:
             db.rollback()
     label = device_label(device) if device else (dev_id or source_ip or "unknown")
+
+    if msg_type in SIM_STATE_EVENTS:
+        slot = f"sim{data.get('slot', 1)}"
+        idx = _slot_index(slot)
+        op_attr = "sim1operator" if idx == "1" else "sim2operator"
+        sig_attr = "sim1signal" if idx == "1" else "sim2signal"
+        if device is not None:
+            if msg_type == 204:
+                op_label = _plmn_operator(data.get("imsi"), data.get("dbm"))
+                if op_label:
+                    setattr(device, op_attr, op_label)
+                try:
+                    sig = int(data.get("dbm"))
+                except (TypeError, ValueError):
+                    sig = -1
+                if sig >= 0:
+                    setattr(device, sig_attr, sig)
+                _learn_sim_number(db, device, slot, str(data.get("msIsdn") or ""))
+            else:
+                # The slot stays unusable until the next 204, so replace the
+                # stale carrier/percentage with the actual state.
+                setattr(device, op_attr, "无卡" if msg_type == 205 else "卡异常")
+                setattr(device, sig_attr, 0)
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+        return {"status": "ok", "type": msg_type, "slot": slot}
 
     if msg_type in (501, 502):
         sms_ts = int(data.get("smsTs") or 0)

@@ -180,7 +180,10 @@ class NoteReq(BaseModel):
 # 402 is the async command result (the SMS "sending..." reply alone never
 # says whether it worked), 501/502/503 are inbound SMS, outbound SMS and the
 # carrier report, and 601-623 are the call states the dashboard lists.
-PUSH_MSG_CODES = "402,501,502,503,601,602,603,620,621,622,623"
+# 204/205/209 keep the dashboard's SIM state current without a manual scan:
+# ready / removed / init-failed. They carry the slot, and 204 also reports the
+# IMSI and signal, which is what the card label is built from.
+PUSH_MSG_CODES = "204,205,209,402,501,502,503,601,602,603,620,621,622,623"
 
 
 class PushSetupReq(BaseModel):

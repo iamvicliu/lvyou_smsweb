@@ -179,6 +179,10 @@ import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 import { useTheme } from '../composables/useTheme'
 import { setupDevicePush } from '../api/endpoints'
 
+// Silent device-list refresh: SIM insert/remove arrives as a webhook, so the
+// dashboard has to re-read the list to show it without pressing 扫描.
+let autoRefreshTimer = null
+
 const router = useRouter()
 const authStore = useAuthStore()
 const devicesStore = useDevicesStore()
@@ -297,6 +301,15 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+  // SIM insert/remove only reaches us as a board push (204/205/209), so
+  // re-read the list quietly to show the new card without a manual scan.
+  autoRefreshTimer = setInterval(() => {
+    if (!document.hidden) devicesStore.refresh({ silent: true })
+  }, 30000)
+})
+
+onUnmounted(() => {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer)
 })
 </script>
 

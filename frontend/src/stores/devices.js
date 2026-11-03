@@ -88,9 +88,9 @@ export const useDevicesStore = defineStore('devices', () => {
     return (e && e.response && e.response.data && e.response.data.detail) || fallback
   }
 
-  async function refresh() {
+  async function refresh({ silent = false } = {}) {
     const notice = useNoticeStore()
-    loading.value = true
+    if (!silent) loading.value = true
     try {
       const [devPage, numPage, groupList] = await Promise.all([
         fetchDevicesPage({
@@ -137,11 +137,11 @@ export const useDevicesStore = defineStore('devices', () => {
         // with stale-but-non-empty data better than empty data.
       }
     } catch (e) {
-      if (!(e && e.response && e.response.status === 401)) {
+      if (!silent && !(e && e.response && e.response.status === 401)) {
         notice.set('获取数据失败，请检查网络连接', 'err')
       }
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
   }
 
