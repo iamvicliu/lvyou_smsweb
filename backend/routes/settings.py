@@ -38,6 +38,11 @@ class SimGuardReq(BaseModel):
     enabled: bool = True
 
 
+class SimGuardMuteReq(BaseModel):
+    devId: str = ""
+    muted: bool = True
+
+
 @router.get("/api/settings/device")
 def get_device_setting():
     user, _ = get_device_credentials()
@@ -57,6 +62,17 @@ def save_sim_guard(req: SimGuardReq):
     from backend import simguard
 
     simguard.set_enabled(bool(req.enabled))
+    return simguard.snapshot()
+
+
+@router.post("/api/settings/sim-guard/mute")
+def mute_sim_guard(req: SimGuardMuteReq):
+    """Silence one board's 209 handling without touching the other boards."""
+    from backend import simguard
+
+    if not req.devId.strip():
+        raise HTTPException(status_code=400, detail="设备 devId 不能为空")
+    simguard.set_muted(req.devId.strip(), bool(req.muted))
     return simguard.snapshot()
 
 

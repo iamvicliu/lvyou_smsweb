@@ -36,6 +36,7 @@ VERIFY_SECONDS = 180.0
 RESTART_COOLDOWN = 24 * 3600
 
 ENABLED_KEY = "simguard_enabled"
+MUTED_KEY = "simguard_muted"
 RESTART_KEY = "simguard_restart:{dev_id}"
 PING_KEY = "ping_intvl:{dev_id}"
 
@@ -54,6 +55,7 @@ _STATE_OK = "ok"
 _STATE_OBSERVING = "observing"
 _STATE_RESTARTED = "restarted"
 _STATE_MANUAL = "manual"
+_STATE_MUTED = "muted"
 
 
 @dataclass
@@ -117,6 +119,50 @@ def set_enabled(value: bool) -> None:
         db.close()
 
 
+def _muted_set(db) -> set:
+    raw = (_setting(db, MUTED_KEY, "") or "").strip()
+    if not raw:
+        return set()
+    return {p.strip() for p in raw.split(",") if p.strip()}
+
+
+def muted_devices() -> set:
+    from backend.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        return _muted_set(db)
+    finally:
+        db.close()
+
+
+def set_muted(dev_id: str, muted: bool) -> None:
+    """Per-board silence: skip 209 decisions *and* their pushes for one board."""
+    dev_id = (dev_id or "").strip()
+    if not dev_id:
+        return
+    from backend.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        ids = _muted_set(db)
+        if muted:
+            ids.add(dev_id)
+            # A pending check would otherwise fire after the user muted it.
+            for key, p in list(_pending.items()):
+                if (p.dev_id or "") == dev_id:
+                    _pending.pop(key, None)
+            _record(dev_id, 0, _STATE_MUTED, "已静音：忽略 209，不推送也不自动重启")
+        else:
+            ids.discard(dev_id)
+            st = _states.get(dev_id) or {}
+            if st.get("state") == _STATE_MUTED:
+                _record(dev_id, int(st.get("slot") or 0), "ok", "已取消静音")
+        _set_setting(db, MUTED_KEY, ",".join(sorted(ids)))
+    finally:
+        db.close()
+
+
 def _record(dev_id: str, slot: int, state: str, detail: str) -> None:
     _states[dev_id or "-"] = {
         "slot": int(slot),
@@ -148,6 +194,11 @@ def note_209(dev_id: str, ip: str, slot: int, note: int, label: str = "",
     except (TypeError, ValueError):
         slot_i = 1
     if slot_i not in (1, 2):
+        return
+    if dev_id and dev_id in muted_devices():
+        cur = _states.get(dev_id) or {}
+        if cur.get("state") != _STATE_MUTED:
+            _record(dev_id, slot_i, _STATE_MUTED, "已静音：忽略 209，不推送也不自动重启")
         return
     now = time.time()
     key = _key(dev_id, slot_i)
@@ -411,6 +462,7 @@ def snapshot() -> Dict[str, Any]:
     db = SessionLocal()
     try:
         on = enabled(db)
+        muted = _muted_set(db)
         rows = db.query(Device).all()
         items = []
         for d in rows:
@@ -431,6 +483,7 @@ def snapshot() -> Dict[str, Any]:
                 "device_id": d.id,
                 "devId": d.devId or "",
                 "name": d.alias or d.devId or d.ip,
+                "muted": bool(d.devId) and d.devId in muted,
                 "state": st.get("state") or "",
                 "detail": st.get("detail") or "",
                 "updated": st.get("updated") or 0,

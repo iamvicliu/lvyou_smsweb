@@ -235,6 +235,9 @@
             <div v-for="g in guardItems" :key="g.device_id" class="answer-row">
               <span class="answer-name">{{ g.name }}</span>
               <span class="answer-values">{{ guardLine(g) }}</span>
+              <button class="theme-toggle" :disabled="guardBusy" @click="toggleGuardMute(g)">
+                <span>{{ g.muted ? '取消静音' : '静音此板' }}</span>
+              </button>
             </div>
           </div>
           <p class="cred-hint">
@@ -278,6 +281,7 @@ import {
   saveDeviceCredentialSetting,
   saveAnswerConfig,
   saveSimGuard,
+  saveSimGuardMute,
   setupRecordings,
   saveNotifySettings,
 } from '../api/endpoints'
@@ -330,6 +334,7 @@ const guardError = ref(false)
 
 function guardLine(g) {
   const parts = []
+  if (g.muted) parts.push('已静音（只记日志，不推送、不重启）')
   if (g.detail) parts.push(g.detail)
   else parts.push('暂无记录')
   if (g.pending && g.pending.length) {
@@ -369,6 +374,25 @@ async function toggleGuard() {
     guardItems.value = data.items || []
     guardError.value = false
     guardStatus.value = guardEnabled.value ? '已开启' : '已关闭'
+  } catch (e) {
+    guardStatus.value = '保存失败'
+    guardError.value = true
+  } finally {
+    guardBusy.value = false
+  }
+}
+
+async function toggleGuardMute(g) {
+  if (guardBusy.value) return
+  guardBusy.value = true
+  guardStatus.value = '保存中…'
+  try {
+    const resp = await saveSimGuardMute(g.devId, !g.muted)
+    const data = resp.data || {}
+    guardEnabled.value = !!data.enabled
+    guardItems.value = data.items || []
+    guardError.value = false
+    guardStatus.value = g.muted ? '已取消静音' : '已静音'
   } catch (e) {
     guardStatus.value = '保存失败'
     guardError.value = true

@@ -221,6 +221,10 @@ export function saveSimGuard(enabled) {
   return api.post('/api/settings/sim-guard', { enabled })
 }
 
+export function saveSimGuardMute(devId, muted) {
+  return api.post('/api/settings/sim-guard/mute', { devId, muted })
+}
+
 // ── call recordings ─────────────────────────────────────────────────────────
 export function fetchRecordingConfig() {
   return api.get('/api/recordings/config')
