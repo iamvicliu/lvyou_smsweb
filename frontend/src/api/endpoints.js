@@ -263,3 +263,29 @@ export function fetchAnswerConfig() {
 export function saveAnswerConfig(payload) {
   return api.post('/api/recordings/answer', payload)
 }
+
+// ── board health / operational controls ─────────────────────────────────────
+export function fetchDeviceHealth(deviceId) {
+  return api.get('/api/devices/' + deviceId + '/health')
+}
+
+export function rebootDevice(deviceId, delay = 5) {
+  return api.post('/api/devices/' + deviceId + '/reboot', { delay })
+}
+
+export function saveDailyRestart(deviceId, enabled, hour) {
+  return api.post('/api/devices/' + deviceId + '/daily-restart', { enabled, hour })
+}
+
+export function controlSimSlot(deviceId, slot, action, enabled = null) {
+  return api.post('/api/devices/' + deviceId + '/slot-control', { slot, action, enabled })
+}
+
+// ── live call takeover ──────────────────────────────────────────────────────
+export function fetchLiveCalls() {
+  return api.get('/api/tel/live')
+}
+
+export function controlPhone(payload) {
+  return api.post('/api/tel/control', payload)
+}

@@ -887,6 +887,7 @@ from backend.routes.config import router as config_router
 from backend.routes.settings import router as settings_router
 from backend.routes.messages import router as messages_router
 from backend.routes.recordings import router as recordings_router
+from backend.routes.control import router as control_router
 from backend.routes import auth as _auth_mod
 from backend.routes import devices as _devices_mod
 from backend.routes import scan as _scan_mod
@@ -960,6 +961,7 @@ app.include_router(config_router)
 app.include_router(settings_router)
 app.include_router(messages_router)
 app.include_router(recordings_router)
+app.include_router(control_router)
 
 # ── Device query helpers (used by routes) ────────────────────────────────────
 # NOTE: getallnumbers() is defined once, earlier in this module. It filters

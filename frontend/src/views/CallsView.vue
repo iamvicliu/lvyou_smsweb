@@ -31,6 +31,8 @@
       </div>
     </div>
 
+    <LiveCallPanel @refresh="load" />
+
     <div class="panel">
       <table v-if="items.length">
         <thead>
@@ -107,6 +109,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore, useDevicesStore } from '../stores'
 import AppHeader from '../components/AppHeader.vue'
 import Pagination from '../components/Pagination.vue'
+import LiveCallPanel from '../components/LiveCallPanel.vue'
 import {
   fetchCallHistory,
   refreshMessages,
