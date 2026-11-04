@@ -23,9 +23,10 @@ from sqlalchemy.orm import Session
 
 from backend.audit import audit
 from backend.db import CallRecord, Device, get_db
-from backend.device_client import ensure_device_token
+from backend.device_client import ensure_device_token, istargetdevice
 from backend.messages import device_call
 from backend.security import is_device_ip_allowed
+from backend.settings_store import device_credential
 
 logger = logging.getLogger("board-manager")
 router = APIRouter()
@@ -288,6 +289,222 @@ def api_slot_control(device_id: int, req: SlotControlReq,
         params = {"p1": req.slot, "p2": state}
         action = f"{cmd}:{req.slot}:{state}"
     return _command_result(device, action, _call(device, token, cmd, params, timeout=12))
+
+
+class BatchSlotControlReq(BaseModel):
+    device_ids: List[int]
+    slots: List[int] = [1, 2]
+    action: str
+    enabled: Optional[bool] = None
+
+    @field_validator("device_ids")
+    @classmethod
+    def _valid_devices(cls, value):
+        ids = [int(v) for v in value]
+        if not ids:
+            raise ValueError("请先选择设备")
+        if len(set(ids)) != len(ids):
+            raise ValueError("设备列表有重复")
+        if len(ids) > 20:
+            raise ValueError("一次最多处理 20 台设备")
+        return ids
+
+    @field_validator("slots")
+    @classmethod
+    def _valid_slots(cls, value):
+        slots = sorted({int(v) for v in value})
+        if not slots or any(v not in (1, 2) for v in slots):
+            raise ValueError("卡槽只能是 1 或 2")
+        return slots
+
+    @field_validator("action")
+    @classmethod
+    def _valid_batch_action(cls, value):
+        if value not in {"net", "power"}:
+            raise ValueError("批量动作只支持 net / power")
+        return value
+
+
+@router.post("/api/devices/slot-control/batch")
+def api_slot_control_batch(req: BatchSlotControlReq, db: Session = Depends(get_db)):
+    """Turn networking/power on or off for several slots at once.
+
+    Each board command is sent one at a time: a slow or offline board must not
+    stall the rest of the batch, and every failure is reported back per slot
+    instead of being collapsed into a single boolean.
+    """
+    if req.enabled is None:
+        raise HTTPException(status_code=400, detail="请指定开启或关闭")
+    state = "on" if req.enabled else "off"
+    cmd = "slotnet" if req.action == "net" else "slotpwr"
+    devices = (
+        db.query(Device).filter(Device.id.in_(req.device_ids))
+        .order_by(Device.sort_order, Device.id).all()
+    )
+    found = {d.id for d in devices}
+    items: List[Dict[str, Any]] = []
+    ok_slots = 0
+    failed_slots = 0
+    for device in devices:
+        slots: List[Dict[str, Any]] = []
+        try:
+            token = ensure_device_token(db, device)
+        except Exception as exc:
+            logger.warning("batch slot token device=%s: %s", device.id, exc)
+            for slot in req.slots:
+                slots.append({
+                    "slot": slot, "ok": False,
+                    "note": "无法与板子建立控制通道",
+                })
+                failed_slots += 1
+            items.append({
+                "device_id": device.id, "name": _device_label(device),
+                "ip": device.ip, "ok": False, "slots": slots,
+            })
+            continue
+        unreachable = False
+        for slot in req.slots:
+            try:
+                response = _call(device, token, cmd, {"p1": slot, "p2": state}, timeout=8)
+                accepted = _accepted(response)
+                note = str(response.get("note") or response.get("msg") or "")
+            except HTTPException as exc:
+                accepted, note = False, str(exc.detail)
+            except Exception as exc:  # timeout / connection reset
+                logger.warning("batch slot %s device=%s slot=%s: %s",
+                               cmd, device.id, slot, exc)
+                # One timeout means the board is unreachable; sending the
+                # second slot command would just wait for the same timeout.
+                unreachable = True
+                for rest in [s for s in req.slots if s >= slot]:
+                    failed_slots += 1
+                    slots.append({
+                        "slot": rest, "ok": False,
+                        "note": "板子没有响应" if rest == slot else "板子没有响应，未下发",
+                    })
+                break
+            if accepted:
+                ok_slots += 1
+            else:
+                failed_slots += 1
+            slots.append({"slot": slot, "ok": accepted, "note": note})
+        audit(
+            "board_control",
+            detail=(f"batch device={device.id} ip={device.ip} action={cmd}:{state} "
+                    f"slots={req.slots} ok={sum(1 for s in slots if s['ok'])}"
+                    + (" transport=failed" if unreachable else "")),
+            result="ok" if all(s["ok"] for s in slots) else "failed",
+        )
+        items.append({
+            "device_id": device.id, "name": _device_label(device), "ip": device.ip,
+            "ok": all(s["ok"] for s in slots), "slots": slots,
+        })
+
+    missing = [i for i in req.device_ids if i not in found]
+    return {
+        "ok": failed_slots == 0 and not missing,
+        "action": cmd, "state": state, "items": items,
+        "ok_slots": ok_slots, "failed_slots": failed_slots,
+        "missing": missing,
+    }
+
+
+class BatchPasswordReq(BaseModel):
+    device_ids: List[int]
+    new_password: str
+
+    @field_validator("device_ids")
+    @classmethod
+    def _valid_devices(cls, value):
+        ids = [int(v) for v in value]
+        if not ids:
+            raise ValueError("请先选择设备")
+        if len(set(ids)) != len(ids):
+            raise ValueError("设备列表有重复")
+        if len(ids) > 20:
+            raise ValueError("一次最多处理 20 台设备")
+        return ids
+
+    @field_validator("new_password")
+    @classmethod
+    def _valid_password(cls, value):
+        pwd = value or ""
+        if len(pwd) < 4 or len(pwd) > 64:
+            raise ValueError("新密码需为 4-64 个字符")
+        return pwd
+
+
+@router.post("/api/devices/passwords/batch")
+def api_batch_board_password(req: BatchPasswordReq, db: Session = Depends(get_db)):
+    """Rotate the board admin password on several boards.
+
+    The board only accepts the change over ``chpwdadmin`` with the current
+    password, and invalidates every cached token afterwards.  The panel's own
+    copy of the password and its token are therefore updated in the same step:
+    if the stored copy lagged behind the board, the board would become
+    unreachable for scans and config reads.
+    """
+    devices = (
+        db.query(Device).filter(Device.id.in_(req.device_ids))
+        .order_by(Device.sort_order, Device.id).all()
+    )
+    found = {d.id for d in devices}
+    items: List[Dict[str, Any]] = []
+    succeeded = 0
+    for device in devices:
+        name = _device_label(device)
+        try:
+            user, old_password = device_credential(device)
+            token = ensure_device_token(db, device)
+            response = _call(
+                device, token, "chpwdadmin",
+                {"p1": old_password, "p2": req.new_password}, timeout=15,
+            )
+            accepted = _accepted(response)
+            note = str(response.get("note") or response.get("msg") or "")
+        except HTTPException as exc:
+            accepted, note = False, str(exc.detail)
+        except Exception as exc:
+            logger.warning("batch password device=%s: %s", device.id, exc)
+            accepted, note = False, "板子没有响应"
+
+        verified = False
+        if accepted:
+            # Persist immediately: the board has already changed, so a panel
+            # copy that still holds the old password can no longer log in.
+            device.passwd = req.new_password
+            device.token = ""
+            db.commit()
+            try:
+                verified, _ = istargetdevice(device.ip, user, req.new_password)
+            except Exception as exc:
+                logger.warning("password verify device=%s: %s", device.id, exc)
+                verified = False
+
+        if accepted and verified:
+            succeeded += 1
+        audit(
+            "board_password",
+            detail=(f"batch device={device.id} ip={device.ip} "
+                    f"changed={accepted} verified={verified}"),
+            result="ok" if accepted and verified else "failed",
+        )
+        item = {
+            "device_id": device.id, "name": name, "ip": device.ip,
+            "ok": bool(accepted and verified), "changed": accepted,
+            "verified": verified,
+            "note": note if not accepted else (
+                "" if verified else "板子已接受新密码，但用新密码回连失败"
+            ),
+        }
+        items.append(item)
+
+    missing = [i for i in req.device_ids if i not in found]
+    return {
+        "ok": succeeded == len(devices) and not missing,
+        "items": items, "succeeded": succeeded,
+        "failed": len(devices) - succeeded, "missing": missing,
+    }
 
 
 class PhoneControlReq(BaseModel):

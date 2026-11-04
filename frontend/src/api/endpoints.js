@@ -199,6 +199,21 @@ export function saveDeviceSim(deviceId, payload) {
   return api.post('/api/devices/' + deviceId + '/sim', payload)
 }
 
+// Batch per-slot controls. Networking on/off for several boards at once; the
+// backend keeps going when one board fails and reports each slot separately.
+export function batchControlSlots(payload) {
+  return api.post('/api/devices/slot-control/batch', payload)
+}
+
+// Rotate the board admin password on several boards; the panel's stored copy
+// is updated in the same request so the boards stay reachable.
+export function batchBoardPassword(deviceIds, newPassword) {
+  return api.post('/api/devices/passwords/batch', {
+    device_ids: deviceIds,
+    new_password: newPassword
+  })
+}
+
 // ── panel-wide settings ──────────────────────────────────────────────────────
 export function getDeviceCredentialSetting() {
   return api.get('/api/settings/device')

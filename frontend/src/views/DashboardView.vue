@@ -50,6 +50,12 @@
         <button class="toolbar-btn" @click="setupPush" :disabled="selectedCount === 0 || pushing">
           {{ pushing ? '接入中…' : '接入推送' }}
         </button>
+        <button class="toolbar-btn" @click="batchTurnOffNet" :disabled="selectedCount === 0 || netBusy">
+          {{ netBusy ? '处理中…' : '批量关联网' }}
+        </button>
+        <button class="toolbar-btn" @click="openPasswordModal" :disabled="selectedCount === 0">
+          改密码
+        </button>
         <button class="toolbar-btn danger" @click="batchDeleteSelected" :disabled="selectedCount === 0">删除</button>
       </div>
     </div>
@@ -141,6 +147,14 @@
     />
 
     <ConfigModal v-if="showConfigModal" />
+    <BatchPasswordModal
+      v-if="showPasswordModal"
+      :device-count="selectedCount"
+      :loading="passwordRunning"
+      :results="passwordResults"
+      @submit="runPasswordChange"
+      @close="closePasswordModal"
+    />
     <ConfirmModal />
     <PromptModal />
   </div>
@@ -153,6 +167,7 @@ import { storeToRefs } from 'pinia'
 import {
   useAuthStore,
   useDevicesStore,
+  useDialogStore,
   useNoticeStore,
   useScanStore
 } from '../stores'
@@ -165,6 +180,7 @@ import WifiModal from '../components/WifiModal.vue'
 import OtaModal from '../components/OtaModal.vue'
 import DetailModal from '../components/DetailModal.vue'
 import ConfigModal from '../components/ConfigModal.vue'
+import BatchPasswordModal from '../components/BatchPasswordModal.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import PromptModal from '../components/PromptModal.vue'
 import { useLoading } from '../composables/useLoading'
@@ -177,7 +193,11 @@ import { useConfigBatch } from '../composables/useConfigBatch'
 import { useDetail } from '../composables/useDetail'
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 import { useTheme } from '../composables/useTheme'
-import { setupDevicePush } from '../api/endpoints'
+import {
+  batchBoardPassword,
+  batchControlSlots,
+  setupDevicePush
+} from '../api/endpoints'
 
 // Silent device-list refresh: SIM insert/remove arrives as a webhook, so the
 // dashboard has to re-read the list to show it without pressing 扫描.
@@ -188,6 +208,7 @@ const authStore = useAuthStore()
 const devicesStore = useDevicesStore()
 const scanStore = useScanStore()
 const noticeStore = useNoticeStore()
+const dialogStore = useDialogStore()
 
 const { authed, uiPass } = storeToRefs(authStore)
 const {
@@ -239,6 +260,81 @@ const {
 const activeTab = ref('devices')
 const pushing = ref(false)
 const sortMode = ref(false)
+const netBusy = ref(false)
+const showPasswordModal = ref(false)
+const passwordRunning = ref(false)
+const passwordResults = ref([])
+
+async function batchTurnOffNet() {
+  if (!selectedCount.value || netBusy.value) return
+  const count = selectedCount.value
+  const confirmed = await dialogStore.confirm({
+    title: '批量关闭联网',
+    message: `关闭选中的 ${count} 台设备的卡1、卡2 联网？\n\n`
+      + '关闭后这两张卡收不到短信、接不到来电，也发不出去；WiFi 保持正常。'
+      + '要恢复需要在详情页逐个卡槽重新开启联网。',
+    confirmText: '关闭联网',
+    danger: true
+  })
+  if (!confirmed) return
+  netBusy.value = true
+  setNotice('正在关闭选中设备的卡槽联网…', 'info')
+  try {
+    const resp = await batchControlSlots({
+      device_ids: selectedIds.value.slice(),
+      slots: [1, 2],
+      action: 'net',
+      enabled: false
+    })
+    const data = (resp && resp.data) || {}
+    const failed = (data.items || []).filter(i => !i.ok)
+    if (failed.length === 0) {
+      setNotice(`已关闭 ${data.ok_slots} 个卡槽的联网`, 'ok')
+    } else {
+      const detail = failed.map(i => {
+        const bad = (i.slots || []).filter(s => !s.ok)
+        return `${i.name || i.ip}：` + bad.map(s => `卡${s.slot} ${s.note || '失败'}`).join('、')
+      }).join('；')
+      setNotice(`已关闭 ${data.ok_slots} 个卡槽，${data.failed_slots} 个失败。${detail}`, 'err')
+    }
+    await devicesStore.refresh({ silent: true })
+  } catch (e) {
+    const detail = (e && e.response && e.response.data && e.response.data.detail) || (e && e.message)
+    setNotice('关闭联网失败：' + (detail || '请稍后重试'), 'err')
+  } finally {
+    netBusy.value = false
+  }
+}
+
+function openPasswordModal() {
+  if (!selectedCount.value) return
+  passwordResults.value = []
+  showPasswordModal.value = true
+}
+
+function closePasswordModal() {
+  showPasswordModal.value = false
+}
+
+async function runPasswordChange(password) {
+  if (!selectedCount.value || passwordRunning.value) return
+  passwordRunning.value = true
+  try {
+    const resp = await batchBoardPassword(selectedIds.value.slice(), password)
+    const data = (resp && resp.data) || {}
+    passwordResults.value = data.items || []
+    if (data.ok) {
+      setNotice(`已在 ${data.succeeded} 台设备上改好密码，并回连验证通过`, 'ok')
+    } else {
+      setNotice(`改密码完成 ${data.succeeded} 台，失败 ${data.failed} 台`, 'err')
+    }
+  } catch (e) {
+    const detail = (e && e.response && e.response.data && e.response.data.detail) || (e && e.message)
+    setNotice('批量改密码失败：' + (detail || '请稍后重试'), 'err')
+  } finally {
+    passwordRunning.value = false
+  }
+}
 
 async function setupPush() {
   if (!selectedCount.value || pushing.value) return
