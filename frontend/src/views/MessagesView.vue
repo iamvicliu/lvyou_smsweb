@@ -155,15 +155,15 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <style scoped>
-.messages-view { padding-bottom: 32px; }
-.toolbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 18px; }
+.messages-view { padding: 24px; max-width: 1440px; margin: 0 auto; }
+.toolbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 0 0 12px; }
 .toolbar-left, .toolbar-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .filter-select, .search-input {
   background: var(--bg-input, #0f1629); color: var(--text, #e2e8f0);
   border: 1px solid var(--border, #253048); border-radius: 8px; padding: 8px 10px;
 }
 .search-input { min-width: 220px; }
-.panel { margin: 0 18px; background: var(--bg-card, #111a2e); border: 1px solid var(--border, #253048); border-radius: 12px; overflow: auto; }
+.panel { margin: 0; background: var(--bg-card, #111a2e); border: 1px solid var(--border, #253048); border-radius: 12px; overflow: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 10px 12px; border-bottom: 1px solid var(--border, #253048); text-align: left; vertical-align: top; }
 th { color: var(--text-muted, #94a3b8); font-weight: 500; position: sticky; top: 0; background: var(--bg-card, #111a2e); }
