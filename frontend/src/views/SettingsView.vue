@@ -81,7 +81,7 @@
             <span class="cred-state" :class="{ err: credError }">{{ credStatus }}</span>
           </div>
           <p class="cred-hint">
-            扫描新设备、读取状态、批量配置和 OTA 都用这一组凭据；板子改了密码后在这里更新一次即可。
+            找板子、读取状态、批量配置和升级固件都用这一组凭据；板子改了密码后在这里更新一次即可。
           </p>
         </div>
       </div>
