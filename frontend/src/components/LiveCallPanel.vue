@@ -14,11 +14,24 @@
         </div>
         <div class="live-state">
           <span :class="['tag', call.state === 'answered' ? 'ok' : 'warn']">{{ stateLabel(call) }}</span>
+          <span :class="['policy', policyTone(call)]">{{ policyLabel(call) }}</span>
           <span class="muted mono">{{ elapsedLabel(call) }}</span>
         </div>
       </div>
 
       <div class="live-actions">
+        <button
+          v-if="call.state === 'ringing' && policyMode(call) !== 0"
+          class="btn-secondary mini"
+          :disabled="isBusy(call)"
+          @click="pauseAutoAnswer(call)"
+        >改为人工接管</button>
+        <button
+          v-if="policyMode(call) === 0 && pausedMode(call)"
+          class="btn-secondary mini"
+          :disabled="isBusy(call)"
+          @click="resumeAutoAnswer(call)"
+        >恢复自动接听</button>
         <button
           v-if="call.state === 'ringing'"
           class="btn-confirm mini"
@@ -63,13 +76,14 @@
 
     <p class="live-hint">
       面板只下发板子指令，不承载通话音频；要听到对方声音，仍然需要通过板子本身的语音通道。语音播放和录音只能二选一。
+      板子自己的自动接听会抢在人工接听之前，想自己接就先把这张卡改成人工接管；改完只影响之后的来电。
     </p>
   </div>
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
-import { controlPhone, fetchLiveCalls } from '../api/endpoints'
+import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { controlPhone, fetchAnswerMode, fetchLiveCalls, setAnswerMode } from '../api/endpoints'
 
 const emit = defineEmits(['refresh'])
 
@@ -79,6 +93,9 @@ const status = reactive({})
 const recording = reactive({})
 const ttsText = reactive({})
 const dtmfKeys = reactive({})
+// deviceId -> { "1": {mode, mode_label, ring, paused_mode}, "2": {...} }
+const answerModes = reactive({})
+const answerLoading = reactive({})
 
 let timer = null
 
@@ -101,6 +118,85 @@ function setStatus(call, ok, text) {
   setTimeout(() => {
     if (status[call.id] && status[call.id].text === text) delete status[call.id]
   }, 6000)
+}
+
+function slotPolicy(call) {
+  const device = answerModes[call.device_id]
+  if (!device) return null
+  return device[String(call.slot)] || null
+}
+
+function policyMode(call) {
+  const policy = slotPolicy(call)
+  return policy ? Number(policy.mode) : null
+}
+
+function pausedMode(call) {
+  const policy = slotPolicy(call)
+  return policy && policy.paused_mode != null ? Number(policy.paused_mode) : null
+}
+
+function policyLabel(call) {
+  const policy = slotPolicy(call)
+  if (!policy) return answerLoading[call.device_id] ? '读接听设置…' : '接听设置未知'
+  const mode = Number(policy.mode)
+  if (mode === 0) return pausedMode(call) ? '人工接管中' : '不自动接听'
+  const label = { 1: '自动接听', 2: '自动接听并录音', 3: '自动挂断' }[mode] || '自动接听'
+  return `${label}·${policy.ring}声`
+}
+
+function policyTone(call) {
+  const mode = policyMode(call)
+  if (mode === null) return ''
+  return mode === 0 ? (pausedMode(call) ? 'manual' : 'idle') : 'auto'
+}
+
+async function loadAnswerMode(deviceId, force = false) {
+  if (!deviceId) return
+  if (answerLoading[deviceId] && !force) return
+  answerLoading[deviceId] = true
+  try {
+    const resp = await fetchAnswerMode(deviceId)
+    const data = (resp && resp.data) || {}
+    if (data.ok) answerModes[deviceId] = data.slots || {}
+  } catch (e) {
+    // A board that is busy mid-call may refuse the read; the badge then shows
+    // "接听设置未知" instead of claiming the slot is safe to take over.
+  } finally {
+    answerLoading[deviceId] = false
+  }
+}
+
+async function pauseAutoAnswer(call) {
+  busy[call.id] = true
+  try {
+    const r = await setAnswerMode(call.device_id, call.slot, 0)
+    const data = (r && r.data) || {}
+    if (data.ok === false) throw new Error('板子没有接受修改')
+    await loadAnswerMode(call.device_id, true)
+    setStatus(call, true, '已改为人工接管，这通还在响就可以点接听')
+  } catch (e) {
+    setStatus(call, false, failText(e))
+  } finally {
+    busy[call.id] = false
+  }
+}
+
+async function resumeAutoAnswer(call) {
+  const target = pausedMode(call)
+  if (!target) return
+  busy[call.id] = true
+  try {
+    const r = await setAnswerMode(call.device_id, call.slot, target)
+    const data = (r && r.data) || {}
+    if (data.ok === false) throw new Error('板子没有接受修改')
+    await loadAnswerMode(call.device_id, true)
+    setStatus(call, true, '已恢复原来的自动接听设置')
+  } catch (e) {
+    setStatus(call, false, failText(e))
+  } finally {
+    busy[call.id] = false
+  }
 }
 
 function failText(e) {
@@ -175,6 +271,16 @@ onMounted(() => {
   timer = setInterval(loadNow, 5000)
 })
 
+// Only fetch board settings for boards that actually have a line open: reading
+// them costs one HTTP round trip per board.
+watch(
+  () => calls.value.map(c => c.device_id).join(','),
+  () => {
+    const deviceIds = [...new Set(calls.value.map(c => c.device_id))]
+    deviceIds.forEach(id => loadAnswerMode(id))
+  }
+)
+
 onUnmounted(() => {
   if (timer) clearInterval(timer)
 })
@@ -206,6 +312,13 @@ onUnmounted(() => {
 .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
 .tag.ok { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 .tag.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.policy {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; border: 1px solid transparent;
+}
+.policy.auto { color: #fbbf24; border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.12); }
+.policy.manual { color: #34d399; border-color: rgba(52, 211, 153, 0.4); background: rgba(52, 211, 153, 0.12); }
+.policy.idle { color: var(--text-muted, #94a3b8); border-color: var(--border, #253048); }
 .mini { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
 .danger { border-color: rgba(239, 68, 68, 0.45); color: #f87171; }
 .muted { color: var(--text-muted, #94a3b8); }

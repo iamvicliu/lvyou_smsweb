@@ -121,18 +121,35 @@
               <div class="maint-title">快速拨打</div>
               <div class="quick-row">
                 <input
-                  :value="myPhone"
+                  ref="phoneInput"
+                  v-model="phoneDraft"
                   class="form-input"
+                  list="detail-phone-list"
                   inputmode="tel"
                   placeholder="我的手机号，填一次就记住"
-                  @input="emit('update-myphone', $event.target.value)"
+                  @blur="commitPhone"
+                  @keyup.enter="commitPhone"
                 />
-                <button class="btn-secondary mini" :disabled="loading || !myPhone" @click="emit('quick-dial', 1)">卡1</button>
-                <button class="btn-secondary mini" :disabled="loading || !myPhone" @click="emit('quick-dial', 2)">卡2</button>
+                <button class="btn-secondary mini" :disabled="loading || !phoneDraft" @click="dialMine(1)">卡1</button>
+                <button class="btn-secondary mini" :disabled="loading || !phoneDraft" @click="dialMine(2)">卡2</button>
               </div>
-              <p class="hint">来电显示的号码就是这张卡的本机号；20 秒自动挂断。</p>
+              <div v-if="savedPhones.length" class="saved-row">
+                <button
+                  v-for="phone in savedPhones.slice(0, 4)"
+                  :key="phone"
+                  type="button"
+                  class="saved-chip"
+                  :title="phone"
+                  @click="phoneDraft = phone"
+                >{{ maskPhone(phone) }}</button>
+              </div>
+              <p class="hint">来电显示的号码就是这张卡的本机号；20 秒自动挂断。号码和首页收发共用一份。</p>
             </div>
           </div>
+
+          <datalist id="detail-phone-list">
+            <option v-for="phone in savedPhones" :key="phone" :value="phone"></option>
+          </datalist>
 
           <button class="btn-secondary reboot" :disabled="busy" @click="reboot">立即重启开发板</button>
           <p class="hint">重启期间短信和来电中断，约 1-2 分钟恢复。</p>
@@ -149,7 +166,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   controlSimSlot,
   fetchDeviceHealth,
@@ -160,7 +177,8 @@ import {
 const props = defineProps({
   detail: { type: Object, required: true },
   loading: { type: Boolean, default: false },
-  myPhone: { type: String, default: '' }
+  myPhone: { type: String, default: '' },
+  savedPhones: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits([
@@ -173,6 +191,32 @@ const device = computed(() => props.detail.device || {})
 const health = ref(null)
 const healthLoading = ref(false)
 const healthError = ref('')
+const phoneInput = ref(null)
+const phoneDraft = ref(props.myPhone || '')
+
+// The input is a draft committed on blur / quick-dial: writing every keystroke
+// into the shared phone book would reshuffle it mid-typing.
+watch(() => props.myPhone, value => {
+  const el = phoneInput.value
+  if (el && document.activeElement === el) return
+  phoneDraft.value = value || ''
+})
+
+function commitPhone() {
+  const value = String(phoneDraft.value || '').trim()
+  if (value !== String(props.myPhone || '').trim()) emit('update-myphone', value)
+}
+
+function dialMine(slot) {
+  const value = String(phoneDraft.value || '').trim()
+  if (value) emit('update-myphone', value)
+  emit('quick-dial', slot)
+}
+
+const maskPhone = phone => {
+  const value = String(phone || '')
+  return value.length > 7 ? `${value.slice(0, 3)}****${value.slice(-4)}` : value
+}
 const busy = ref(false)
 const message = ref('')
 const messageOk = ref(true)
@@ -443,6 +487,14 @@ onMounted(() => {
 .switch { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
 .hour-select { width: auto; min-width: 110px; padding: 7px 10px; font-size: 13px; }
 .quick-row .form-input { flex: 1; min-width: 130px; padding: 7px 10px; font-size: 13px; }
+.saved-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.saved-chip {
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-secondary); border-radius: 999px;
+  padding: 4px 10px; font-size: 11px; cursor: pointer;
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+}
+.saved-chip:hover { border-color: var(--primary); color: var(--primary); }
 .reboot { border-color: rgba(239, 68, 68, 0.45); color: var(--danger); }
 .mini { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; white-space: nowrap; }

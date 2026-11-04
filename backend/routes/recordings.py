@@ -413,6 +413,98 @@ class AnswerReq(BaseModel):
     max_seconds: int = 15
 
 
+class AnswerModeReq(BaseModel):
+    slot: int
+    mode: int
+
+
+# Remembered per board+slot so "hand it back to the board" is one click. The
+# value is the auto-answer mode the operator had before switching to manual.
+ANSWER_PREV_KEY = "answer_prev:{device_id}:{slot}"
+
+
+def _answer_slot_state(device, slot: int) -> Dict[str, Any]:
+    from backend.boardparams import ANSWER_MODES, read_params
+
+    params = read_params(device)
+    mode = _int(params.get(f"cimd{slot}"))
+    return {
+        "mode": mode,
+        "mode_label": ANSWER_MODES.get(mode, str(mode)),
+        "ring": _int(params.get(f"cirn{slot}")),
+        "max_seconds": _int(params.get(f"cims{slot}")),
+    }
+
+
+@router.get("/api/devices/{device_id}/answer-mode")
+def api_answer_mode_get(device_id: int, db: Session = Depends(get_db)):
+    """Current auto-answer mode per slot, plus the mode we paused for takeover."""
+    from backend.messages import get_setting
+
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    try:
+        slots = {str(slot): _answer_slot_state(device, slot) for slot in (1, 2)}
+    except Exception as exc:
+        logger.warning("answer-mode read failed for %s: %s", device.ip, exc)
+        raise HTTPException(status_code=502, detail=f"读取接听设置失败：{exc}") from exc
+    for slot in (1, 2):
+        prev = get_setting(db, ANSWER_PREV_KEY.format(device_id=device.id, slot=slot), "")
+        slots[str(slot)]["paused_mode"] = _int(prev) if prev else None
+    return {"ok": True, "device_id": device.id, "slots": slots}
+
+
+@router.post("/api/devices/{device_id}/answer-mode")
+def api_answer_mode_set(device_id: int, req: AnswerModeReq, db: Session = Depends(get_db)):
+    """Change only the answer mode of one slot.
+
+    Auto-answer and live takeover fight over the same call: whichever touches it
+    first wins. This endpoint is the arbitration switch — dropping a slot to
+    mode 0 leaves ringing calls to the panel, and remembers the previous mode so
+    the board can be handed the line back without re-entering the settings page.
+    Ring count and call length stay untouched.
+    """
+    from backend.boardparams import write_params
+    from backend.messages import get_setting, set_setting
+
+    if req.slot not in (1, 2):
+        raise HTTPException(status_code=400, detail="卡槽只能是 1 或 2")
+    if req.mode not in (0, 1, 2, 3):
+        raise HTTPException(status_code=400, detail="接听模式只能是 0/1/2/3")
+
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    key = ANSWER_PREV_KEY.format(device_id=device.id, slot=req.slot)
+    try:
+        before = _answer_slot_state(device, req.slot)
+        back = write_params(device, {f"cimd{req.slot}": req.mode})
+    except Exception as exc:
+        logger.warning("answer-mode write failed for %s: %s", device.ip, exc)
+        raise HTTPException(status_code=502, detail=f"板子没有接受修改：{exc}") from exc
+
+    previous = before["mode"]
+    if req.mode == 0 and previous != 0:
+        set_setting(db, key, str(previous))
+    elif req.mode != 0:
+        set_setting(db, key, "")
+
+    applied = _int(back.get(f"cimd{req.slot}"))
+    paused = get_setting(db, key, "")
+    return {
+        "ok": applied == req.mode,
+        "device_id": device.id,
+        "slot": req.slot,
+        "mode": applied,
+        "previous": previous,
+        "paused_mode": _int(paused) if paused else None,
+        "ring": _int(back.get(f"cirn{req.slot}")),
+        "max_seconds": _int(back.get(f"cims{req.slot}")),
+    }
+
+
 @router.get("/api/recordings/answer")
 def api_recording_answer_config(db: Session = Depends(get_db)):
     """Current auto-answer settings, read straight from each board."""

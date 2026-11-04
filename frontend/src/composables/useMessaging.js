@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { fetchSmsJob, sendSms, dialDevice } from '../api/endpoints'
 import { useLoading } from './useLoading'
 import { useNotice } from './useNotice'
+import { usePhonebook } from './usePhonebook'
 
 // SMS + dial workflow (they share the sender select + parse helper).
 // Module-level singleton so the MessagePanel bindings and App.vue use the
@@ -40,6 +41,7 @@ function parseSenderValue() {
 export function useMessaging() {
   const loading = useLoading()
   const { setNotice, errText } = useNotice()
+  const { rememberPhone } = usePhonebook()
 
   function watchJob(tid) {
     const mine = ++pollToken
@@ -94,6 +96,9 @@ export function useMessaging() {
       const tid = resp && resp.data && resp.data.tid
       setNotice('板子已接收，等待发送结果…', 'info')
       if (tid) watchJob(tid)
+      // Remember before clearing: the next message to the same person should
+      // not need retyping the number.
+      rememberPhone(toPhone.value)
       toPhone.value = ''
       content.value = ''
     } catch (e) {
@@ -122,6 +127,7 @@ export function useMessaging() {
         tts: ttsText.value
       })
       setNotice('已拨出', 'ok')
+      rememberPhone(dialPhone.value)
       dialPhone.value = ''
       ttsText.value = ''
     } catch (e) {

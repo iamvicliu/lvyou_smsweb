@@ -138,6 +138,7 @@
       :detail="deviceDetail"
       :loading="loading"
       :my-phone="myPhone"
+      :saved-phones="savedPhones"
       @update-sim1="updateDetailSim('sim1number', $event)"
       @update-sim2="updateDetailSim('sim2number', $event)"
       @update-myphone="setMyPhone"
@@ -250,6 +251,7 @@ const {
   showDetailModal,
   deviceDetail,
   myPhone,
+  savedPhones,
   setMyPhone,
   closeDetailModal,
   saveSimSingle,

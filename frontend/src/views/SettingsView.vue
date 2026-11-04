@@ -195,6 +195,8 @@
           </div>
           <p class="cred-hint">
             两个卡槽一起设置。该配置写入板子“运行参数”，重启后保留。
+            这张卡一旦设置了自动接听，来电会先被板子接走，人在面板上就来不及接；
+            想人工接听时到通话页点「改为人工接管」，把这张卡临时切成不接听，之后可一键恢复。
           </p>
           <div v-if="answerDevices.length" class="answer-list">
             <div v-for="d in answerDevices" :key="d.device_id" class="answer-row">

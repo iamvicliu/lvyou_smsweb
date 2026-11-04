@@ -214,6 +214,17 @@ export function batchBoardPassword(deviceIds, newPassword) {
   })
 }
 
+// Per-slot auto-answer policy. Reading it tells the operator whether the board
+// will pick up a ringing call before they can; writing mode 0 hands the call to
+// the panel and remembers the previous mode for a one-click restore.
+export function fetchAnswerMode(deviceId) {
+  return api.get('/api/devices/' + deviceId + '/answer-mode')
+}
+
+export function setAnswerMode(deviceId, slot, mode) {
+  return api.post('/api/devices/' + deviceId + '/answer-mode', { slot, mode })
+}
+
 // ── panel-wide settings ──────────────────────────────────────────────────────
 export function getDeviceCredentialSetting() {
   return api.get('/api/settings/device')

@@ -4,36 +4,19 @@ import { dialDevice, fetchDeviceDetail, saveDeviceSim } from '../api/endpoints'
 import { useDevicesStore } from '../stores'
 import { useLoading } from './useLoading'
 import { useNotice } from './useNotice'
+import { usePhonebook } from './usePhonebook'
 
 // Device detail modal + inline SIM number edit/save. Singleton state shared by
 // the device table row action and DetailModal.
 const showDetailModal = ref(false)
 const deviceDetail = ref(null)
 
-// The number the operator calls to identify an unknown SIM. It is typed once
-// and kept in the browser so the quick-dial buttons never ask again.
-const MYPHONE_KEY = 'lvyou.myphone'
-
-function readStoredPhone() {
-  try {
-    return localStorage.getItem(MYPHONE_KEY) || ''
-  } catch (e) {
-    return ''
-  }
-}
-
-const myPhone = ref(readStoredPhone())
-
-function setMyPhone(value) {
-  myPhone.value = value
-  try {
-    if (value) localStorage.setItem(MYPHONE_KEY, value)
-    else localStorage.removeItem(MYPHONE_KEY)
-  } catch (e) {
-    // Private-mode browsers can refuse storage; the field still works for
-    // this session, which is better than failing the whole dialog.
-  }
-}
+// The number the operator calls to identify an unknown SIM. It lives in the
+// shared phone book, so the dashboard recipient field and the quick-dial
+// buttons never drift apart or ask for the same number twice.
+const { primaryPhone, savedPhones, rememberPhone, forgetPhone } = usePhonebook()
+const myPhone = primaryPhone
+const setMyPhone = rememberPhone
 
 export function useDetail() {
   const loading = useLoading()
@@ -123,7 +106,9 @@ export function useDetail() {
     showDetailModal,
     deviceDetail,
     myPhone,
+    savedPhones,
     setMyPhone,
+    forgetPhone,
     showDetail,
     closeDetailModal,
     saveSimSingle,
