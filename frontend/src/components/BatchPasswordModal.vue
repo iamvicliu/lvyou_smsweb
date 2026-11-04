@@ -8,8 +8,7 @@
 
       <div class="modal-body">
         <p class="lead">
-          将修改选中的 <strong>{{ deviceCount }}</strong> 台板子的管理员密码，
-          并把面板保存的密码一起更新。
+          将修改选中的 <strong>{{ deviceCount }}</strong> 台板子的管理员密码，并把面板保存的密码一起更新。
         </p>
         <p class="hint">
           改完后面板原来拿到的控制令牌立即失效，板子会有 1-2 秒断连；

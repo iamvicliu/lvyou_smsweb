@@ -72,7 +72,7 @@
         <section class="block">
           <div class="block-head">
             <h4>运行状态</h4>
-            <span class="hint">每次打开只查一次，不轮询</span>
+            <span class="hint">仅打开时读取一次</span>
           </div>
           <div v-if="health" class="stat-grid">
             <div class="stat"><span>运行时长</span><b>{{ uptimeLabel(health.uptime) }}</b></div>
@@ -387,6 +387,8 @@ onMounted(() => {
 
 <style scoped>
 .detail-modal { max-width: 720px; }
+.detail-modal .modal-footer { justify-content: flex-end; }
+.detail-modal .modal-footer .btn-cancel { flex: 0 0 auto; min-width: 96px; }
 .header-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .header-main h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pill {
@@ -403,7 +405,8 @@ onMounted(() => {
 .id-cell b { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .block { border-top: 1px solid var(--border); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
 .block:first-of-type { border-top: none; padding-top: 0; }
-.block-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.block-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.block-head .hint { min-width: 0; }
 .block h4 { font-size: 13px; font-weight: 600; }
 .head-actions { display: flex; align-items: center; gap: 8px; }
 .firmware { font-size: 11px; color: var(--text-muted); }
