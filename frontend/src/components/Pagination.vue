@@ -1,5 +1,5 @@
 <template>
-  <div v-if="pages > 1 || total > pageSize" class="pagination">
+  <div v-if="pages > 1 || total > pageSize" :class="['pagination', { flush }]">
     <span class="pagination-info">共 {{ total }} 条 · 第 {{ page }} / {{ pages || 1 }} 页</span>
     <div class="pagination-controls">
       <button
@@ -36,7 +36,10 @@ defineProps({
   page: { type: Number, required: true },
   pages: { type: Number, default: 0 },
   pageSize: { type: Number, default: 100 },
-  total: { type: Number, default: 0 }
+  total: { type: Number, default: 0 },
+  // Flush drops the card chrome so the pager can sit inside a panel without
+  // drawing a second box inside it.
+  flush: { type: Boolean, default: false }
 })
 const emit = defineEmits(['change'])
 </script>
@@ -55,6 +58,14 @@ const emit = defineEmits(['change'])
   gap: 12px;
 }
 .pagination-info { color: var(--text-muted, #64748b); font-size: 13px; }
+.pagination.flush {
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  margin-top: 0;
+  padding: 10px 2px 6px;
+}
 .pagination-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .pg-btn {
   background: var(--bg-input, #0f1629);

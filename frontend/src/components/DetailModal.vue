@@ -173,6 +173,7 @@ import {
   rebootDevice,
   saveDailyRestart
 } from '../api/endpoints'
+import { operatorLabel } from '../utils/format'
 
 const props = defineProps({
   detail: { type: Object, required: true },
@@ -251,7 +252,7 @@ const slotViews = computed(() => {
       slot,
       state: row ? row.state : '',
       signal: row ? row.signal : -1,
-      operator: row ? row.operator : deviceOperators[slot - 1],
+      operator: operatorLabel(row ? row.operator : deviceOperators[slot - 1]),
       number: row ? row.number : deviceNumbers[slot - 1],
       net_mode: row ? row.net_mode : '',
       net_enabled: row ? row.net_enabled : null

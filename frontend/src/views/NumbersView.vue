@@ -29,6 +29,7 @@
       <NumbersTable />
 
       <Pagination
+        flush
         :page="devicesStore.numbersPage"
         :pages="devicesStore.numbersPages"
         :page-size="devicesStore.numbersPageSize"
@@ -71,10 +72,17 @@ async function handleLogout() {
 onMounted(async () => {
   if (!(await authStore.restore())) {
     router.push('/login')
+    return
   }
+  // A direct visit / reload on this page has no dashboard fetch behind it,
+  // so the numbers list must load itself.
+  await refresh()
 })
 </script>
 
 <style scoped>
 .numbers-view { padding: 24px; max-width: 1440px; margin: 0 auto; }
+@media (max-width: 640px) {
+  .numbers-view { padding: 14px; }
+}
 </style>

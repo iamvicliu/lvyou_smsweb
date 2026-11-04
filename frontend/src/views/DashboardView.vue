@@ -85,6 +85,7 @@
       />
 
       <Pagination
+        flush
         :page="devicesStore.devicesPage"
         :pages="devicesStore.devicesPages"
         :page-size="devicesStore.devicesPageSize"

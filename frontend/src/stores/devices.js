@@ -238,12 +238,60 @@ export const useDevicesStore = defineStore('devices', () => {
 
   async function move(device, payload) {
     const notice = useNoticeStore()
+    // Dragging must feel instant. Move the card inside the current page right
+    // away, then persist in the background; a failed save snaps the list back.
+    const snapshot = devices.value.slice()
+    let changed = false
+    if (payload.before || payload.after) {
+      changed = spliceLocally(device.id, payload.before || payload.after, !!payload.after)
+    } else if (payload.direction) {
+      changed = shiftLocally(device.id, payload.direction)
+    }
+    if (!changed) return
     try {
       await moveDevice(device.id, payload)
-      await refresh()
+      scheduleOrderSync()
     } catch (e) {
+      devices.value = snapshot
       notice.set(_detail(e, '排序失败'), 'err')
     }
+  }
+
+  // Reorder the currently loaded page only; off-page rows stay untouched
+  // because the server owns their positions.
+  function spliceLocally(fromId, targetId, after) {
+    const list = devices.value
+    const fromIdx = list.findIndex(d => d.id === fromId)
+    if (fromIdx === -1) return false
+    const [moved] = list.splice(fromIdx, 1)
+    const targetIdx = list.findIndex(d => d.id === targetId)
+    if (targetIdx === -1) {
+      list.splice(fromIdx, 0, moved)
+      return false
+    }
+    list.splice(after ? targetIdx + 1 : targetIdx, 0, moved)
+    return true
+  }
+
+  function shiftLocally(id, direction) {
+    const list = devices.value
+    const idx = list.findIndex(d => d.id === id)
+    const to = direction === 'up' ? idx - 1 : idx + 1
+    if (idx < 0 || to < 0 || to >= list.length) return false
+    const [moved] = list.splice(idx, 1)
+    list.splice(to, 0, moved)
+    return true
+  }
+
+  // One quiet refresh after a burst of drags keeps numbers / totals in sync
+  // without fighting the optimistic order.
+  let _orderSyncTimer = null
+  function scheduleOrderSync() {
+    if (_orderSyncTimer) clearTimeout(_orderSyncTimer)
+    _orderSyncTimer = setTimeout(() => {
+      _orderSyncTimer = null
+      refresh({ silent: true })
+    }, 800)
   }
 
   function moveBy(device, direction) {

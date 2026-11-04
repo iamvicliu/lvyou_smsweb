@@ -11,95 +11,142 @@
       @scan="$router.push('/dashboard')"
     />
 
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <select v-model="deviceId" class="filter-select" @change="reload">
-          <option :value="0">全部设备</option>
-          <option v-for="d in devices" :key="d.id" :value="d.id">{{ d.alias || d.devId || d.ip }}</option>
-        </select>
-        <select v-model="direction" class="filter-select" @change="reload">
-          <option value="">全部方向</option>
-          <option value="incoming">呼入</option>
-          <option value="outgoing">呼出</option>
-        </select>
-        <input v-model="q" class="search-input" placeholder="搜索号码..." @keyup.enter="reload" />
-        <button class="toolbar-btn" @click="reload">查询</button>
-      </div>
-      <div class="toolbar-right">
-        <span v-if="syncing" class="muted">同步中...</span>
-        <button class="toolbar-btn" :disabled="syncing" @click="syncAll">从板子同步</button>
-      </div>
-    </div>
-
     <LiveCallPanel @refresh="load" />
 
-    <div class="panel">
-      <table v-if="items.length">
-        <thead>
-          <tr>
-            <th style="width:150px">时间</th>
-            <th style="width:150px">设备</th>
-            <th style="width:140px">卡槽</th>
-            <th style="width:70px">方向</th>
-            <th style="width:130px">号码</th>
-            <th style="width:90px">状态</th>
-            <th style="width:80px">时长</th>
-            <th style="width:120px">录音</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="row in items" :key="row.id">
-          <tr>
-            <td class="muted">{{ row.call_time }}</td>
-            <td>{{ row.device_name }}</td>
-            <td>{{ simLabel(row.sim_slot, row.sim_number) }}</td>
-            <td>{{ row.direction === 'incoming' ? '呼入' : '呼出' }}</td>
-            <td class="mono">{{ row.phone }}</td>
-            <td><span :class="['tag', tagClass(row.action)]">{{ actionLabel(row.action) }}</span></td>
-            <td>{{ formatDuration(rowDuration(row)) }}</td>
-            <td>
-              <template v-if="row.recording && row.recording.status !== 'failed'">
-                <button class="rec-btn" @click="togglePlay(row.recording.id)">
-                  {{ playing === row.recording.id ? '收起' : '播放' }}
-                </button>
-                <a class="rec-link" :href="downloadUrl(row.recording.id)">下载</a>
-              </template>
-              <span v-else-if="row.recording" class="rec-fail" :title="row.recording.note">失败</span>
-              <span v-else class="muted">-</span>
-            </td>
-          </tr>
-          <tr v-if="row.recording && playing === row.recording.id" class="rec-row">
-            <td colspan="8">
-              <audio
-                :src="audioUrl(row.recording.id)"
-                controls
-                autoplay
-                preload="none"
-                style="width:100%;max-width:520px"
-              />
-              <span class="muted rec-meta">
-                录音时长 {{ formatDuration(row.recording.duration) }} ·
-                {{ formatSize(row.recording.size) }}
-                <template v-if="row.recording.status === 'reported'">
-                  · 板子已上报，但面板没收到音频文件
-                </template>
-              </span>
-              <button class="rec-del" @click="removeRecording(row)">删除录音</button>
-            </td>
-          </tr>
-          </template>
-        </tbody>
-      </table>
-      <div v-else class="empty">{{ loading ? '加载中...' : '暂无通话记录' }}</div>
-    </div>
+    <section class="records-panel">
+      <div class="panel-head">
+        <span class="panel-title">通话记录 <b>{{ total }}</b></span>
+        <div class="panel-filters">
+          <select v-model="deviceId" class="filter-select" @change="reload">
+            <option :value="0">全部设备</option>
+            <option v-for="d in devices" :key="d.id" :value="d.id">{{ d.alias || d.devId || d.ip }}</option>
+          </select>
+          <select v-model="direction" class="filter-select" @change="reload">
+            <option value="">全部方向</option>
+            <option value="incoming">呼入</option>
+            <option value="outgoing">呼出</option>
+          </select>
+          <input v-model="q" class="search-input" placeholder="搜索号码" @keyup.enter="reload" />
+        </div>
+        <button class="toolbar-btn" @click="reload">查询</button>
+        <button class="toolbar-btn" :disabled="syncing" @click="syncAll">
+          {{ syncing ? '同步中…' : '从板子同步' }}
+        </button>
+      </div>
 
-    <Pagination
-      :page="page"
-      :pages="pages"
-      :page-size="pageSize"
-      :total="total"
-      @change="p => { page = p; load() }"
-    />
+      <div class="records-scroll records-table-only">
+        <table v-if="items.length" class="records-table cols-8">
+          <thead>
+            <tr>
+              <th style="width:170px">时间</th>
+              <th style="width:150px">设备</th>
+              <th style="width:190px">卡槽</th>
+              <th style="width:64px">方向</th>
+              <th style="width:140px">号码</th>
+              <th style="width:80px">状态</th>
+              <th style="width:80px">时长</th>
+              <th style="width:130px">录音</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="row in items" :key="row.id">
+            <tr>
+              <td class="muted nowrap">{{ row.call_time }}</td>
+              <td>{{ row.device_name }}</td>
+              <td>{{ simLabel(row.sim_slot, row.sim_number) }}</td>
+              <td>{{ row.direction === 'incoming' ? '呼入' : '呼出' }}</td>
+              <td class="mono nowrap">{{ row.phone }}</td>
+              <td><span :class="['tag', tagClass(row.action)]">{{ actionLabel(row.action) }}</span></td>
+              <td class="nowrap">{{ formatDuration(rowDuration(row)) }}</td>
+              <td>
+                <template v-if="row.recording && row.recording.status !== 'failed'">
+                  <button class="rec-btn" @click="togglePlay(row.recording.id)">
+                    {{ playing === row.recording.id ? '收起' : '播放' }}
+                  </button>
+                  <a class="rec-link" :href="downloadUrl(row.recording.id)">下载</a>
+                </template>
+                <span v-else-if="row.recording" class="rec-fail" :title="row.recording.note">失败</span>
+                <span v-else class="muted">-</span>
+              </td>
+            </tr>
+            <tr v-if="row.recording && playing === row.recording.id" class="rec-row">
+              <td colspan="8">
+                <audio
+                  :src="audioUrl(row.recording.id)"
+                  controls
+                  autoplay
+                  preload="none"
+                  style="width:100%;max-width:520px"
+                />
+                <span class="muted rec-meta">
+                  录音时长 {{ formatDuration(row.recording.duration) }} ·
+                  {{ formatSize(row.recording.size) }}
+                  <template v-if="row.recording.status === 'reported'">
+                    · 板子已上报，但面板没收到音频文件
+                  </template>
+                </span>
+                <button class="rec-del" @click="removeRecording(row)">删除录音</button>
+              </td>
+            </tr>
+            </template>
+          </tbody>
+        </table>
+        <div v-else class="empty-row">{{ loading ? '加载中…' : '暂无通话记录' }}</div>
+      </div>
+
+      <div v-if="items.length" class="record-list">
+        <div v-for="row in items" :key="'c' + row.id" class="record-item">
+          <div class="record-top">
+            <span class="record-time">{{ row.call_time }}</span>
+            <span :class="['tag', tagClass(row.action)]">{{ actionLabel(row.action) }}</span>
+          </div>
+          <div class="record-sub">
+            <span>{{ row.device_name }}</span>
+            <span class="sep">·</span>
+            <span>{{ simLabel(row.sim_slot) }}</span>
+            <span class="sep">·</span>
+            <span class="mono">{{ row.phone }}</span>
+            <span class="sep">·</span>
+            <span>{{ row.direction === 'incoming' ? '呼入' : '呼出' }}</span>
+            <template v-if="Number(rowDuration(row) || 0) > 0">
+              <span class="sep">·</span>
+              <span>{{ formatDuration(rowDuration(row)) }}</span>
+            </template>
+          </div>
+          <div v-if="row.recording" class="record-actions">
+            <template v-if="row.recording.status !== 'failed'">
+              <button class="rec-btn" @click="togglePlay(row.recording.id)">
+                {{ playing === row.recording.id ? '收起' : '播放录音' }}
+              </button>
+              <a class="rec-link" :href="downloadUrl(row.recording.id)">下载</a>
+              <span class="muted rec-meta">
+                {{ formatDuration(row.recording.duration) }} · {{ formatSize(row.recording.size) }}
+              </span>
+            </template>
+            <span v-else class="rec-fail" :title="row.recording.note">录音失败</span>
+          </div>
+          <div v-if="row.recording && playing === row.recording.id" class="record-actions">
+            <audio
+              :src="audioUrl(row.recording.id)"
+              controls
+              autoplay
+              preload="none"
+              style="width:100%"
+            />
+            <button class="rec-del" style="margin-left:0" @click="removeRecording(row)">删除录音</button>
+          </div>
+        </div>
+      </div>
+
+      <Pagination
+        flush
+        :page="page"
+        :pages="pages"
+        :page-size="pageSize"
+        :total="total"
+        @change="p => { page = p; load() }"
+      />
+    </section>
   </div>
 </template>
 
@@ -250,28 +297,17 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 
 <style scoped>
 .calls-view { padding: 24px; max-width: 1440px; margin: 0 auto; }
-.toolbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 0 0 12px; }
-.toolbar-left, .toolbar-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.filter-select, .search-input {
-  background: var(--bg-input, #0f1629); color: var(--text, #e2e8f0);
-  border: 1px solid var(--border, #253048); border-radius: 8px; padding: 8px 10px;
-}
-.search-input { min-width: 200px; }
-.panel { margin: 0; background: var(--bg-card, #111a2e); border: 1px solid var(--border, #253048); border-radius: 12px; overflow: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { padding: 10px 12px; border-bottom: 1px solid var(--border, #253048); text-align: left; }
-th { color: var(--text-muted, #94a3b8); font-weight: 500; }
 .muted { color: var(--text-muted, #94a3b8); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
 .tag.ok { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 .tag.miss { background: rgba(239, 68, 68, 0.15); color: #f87171; }
 .tag.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
 .rec-btn {
-  background: transparent; color: #60a5fa; border: 1px solid #334155;
-  border-radius: 6px; padding: 2px 8px; font-size: 12px; cursor: pointer;
+  background: transparent; color: var(--primary, #60a5fa); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 10px; font-size: 12px; cursor: pointer;
 }
-.rec-btn:hover { border-color: #60a5fa; }
+.rec-btn:hover { border-color: var(--primary, #60a5fa); }
 .rec-link { margin-left: 8px; color: var(--text-muted, #94a3b8); font-size: 12px; }
 .rec-fail { color: #f87171; font-size: 12px; }
 .rec-row td { background: rgba(15, 23, 42, 0.45); }
@@ -280,5 +316,10 @@ th { color: var(--text-muted, #94a3b8); font-weight: 500; }
   margin-left: 12px; background: transparent; border: 1px solid #7f1d1d;
   color: #f87171; border-radius: 6px; padding: 2px 8px; font-size: 12px; cursor: pointer;
 }
-.empty { padding: 40px; text-align: center; color: var(--text-muted, #94a3b8); }
+@media (max-width: 640px) {
+  .calls-view { padding: 14px; }
+  .panel-filters { min-width: 100%; flex-wrap: wrap; }
+  .panel-filters .filter-select { flex: 1 1 0; min-width: 0; }
+  .panel-filters .search-input { max-width: none; flex: 1 1 100%; min-width: 0; }
+}
 </style>

@@ -18,16 +18,38 @@
 
     <div class="settings-grid">
       <div class="settings-card">
-        <h3>外观</h3>
+        <h3>界面</h3>
         <div class="setting-item">
           <div class="setting-info">
             <span class="setting-label">主题模式</span>
-            <span class="setting-desc">切换深色/浅色主题</span>
+            <span class="setting-desc">切换深色 / 浅色主题</span>
           </div>
           <button class="theme-toggle" @click="toggleTheme">
             <span class="theme-icon">{{ isDark ? '' : '☀️' }}</span>
             <span>{{ isDark ? '深色' : '浅色' }}</span>
           </button>
+        </div>
+        <div class="shortcut-grid">
+          <div class="shortcut-item">
+            <span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>K</kbd></span>
+            <span class="shortcut-desc">聚焦搜索框</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-keys"><kbd>Space</kbd></span>
+            <span class="shortcut-desc">全选 / 取消全选</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-keys"><kbd>Delete</kbd></span>
+            <span class="shortcut-desc">批量删除设备</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-keys"><kbd>R</kbd></span>
+            <span class="shortcut-desc">刷新设备列表</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-keys"><kbd>Esc</kbd></span>
+            <span class="shortcut-desc">关闭弹窗</span>
+          </div>
         </div>
       </div>
 
@@ -90,32 +112,6 @@
           <p class="cred-hint">
             收到短信、短信发出/失败/送达时推送到 iPhone。地址含设备 Key，保存后只显示域名，不会再回显完整链接。
           </p>
-        </div>
-      </div>
-
-      <div class="settings-card">
-        <h3>快捷键</h3>
-        <div class="shortcuts-list">
-          <div class="shortcut-item">
-            <span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>K</kbd></span>
-            <span class="shortcut-desc">聚焦搜索框</span>
-          </div>
-          <div class="shortcut-item">
-            <span class="shortcut-keys"><kbd>Space</kbd></span>
-            <span class="shortcut-desc">全选/取消全选</span>
-          </div>
-          <div class="shortcut-item">
-            <span class="shortcut-keys"><kbd>Delete</kbd></span>
-            <span class="shortcut-desc">批量删除选中设备</span>
-          </div>
-          <div class="shortcut-item">
-            <span class="shortcut-keys"><kbd>R</kbd></span>
-            <span class="shortcut-desc">刷新设备列表</span>
-          </div>
-          <div class="shortcut-item">
-            <span class="shortcut-keys"><kbd>Esc</kbd></span>
-            <span class="shortcut-desc">关闭弹窗</span>
-          </div>
         </div>
       </div>
 
@@ -254,16 +250,11 @@
         </div>
       </div>
 
-      <div class="settings-card">
-        <h3>关于</h3>
-        <div class="about-info">
-          <p><strong>绿邮群控系统</strong></p>
-          <p>版本：v5.2.0</p>
-          <p>技术栈：Vue 3 + Naive UI + Pinia</p>
-          <p>License: MIT</p>
-        </div>
-      </div>
     </div>
+
+    <footer class="settings-foot">
+      绿邮群控系统 v5.2.0 · Vue 3 + Pinia · MIT
+    </footer>
   </div>
 </template>
 
@@ -654,8 +645,8 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.settings-view { padding: 24px; max-width: 1440px; margin: 0 auto; }
-.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+.settings-view { padding: 20px 24px 28px; max-width: 1440px; margin: 0 auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
 .header-left { display: flex; align-items: center; gap: 12px; }
 .header-right { display: flex; align-items: center; gap: 8px; }
 .header-title h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
@@ -690,12 +681,12 @@ onMounted(async () => {
 }
 .header-btn.logout:hover { background: var(--danger-glow); }
 .page-title { font-size: 24px; font-weight: 700; margin-bottom: 24px; letter-spacing: -0.02em; }
-.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
 .settings-card.wide { grid-column: 1 / -1; }
-.card-divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
-.answer-form { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.card-divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+.answer-form { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
 .answer-form .cred-row.compact { min-width: 120px; flex: 0 1 160px; }
-.answer-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.answer-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
 .answer-row { display: flex; gap: 12px; font-size: 13px; flex-wrap: wrap; }
 .answer-name { color: var(--text-primary); min-width: 160px; }
 .answer-values { color: var(--text-secondary); }
@@ -703,13 +694,13 @@ onMounted(async () => {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: 16px 18px;
 }
-.settings-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-.setting-item { display: flex; justify-content: space-between; align-items: center; }
+.settings-card h3 { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.setting-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .setting-info { display: flex; flex-direction: column; gap: 4px; }
-.setting-label { font-size: 14px; font-weight: 500; }
-.setting-desc { font-size: 12px; color: var(--text-muted); }
+.setting-label { font-size: 13px; font-weight: 500; }
+.setting-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
 .theme-toggle {
   display: flex;
   align-items: center;
@@ -717,10 +708,10 @@ onMounted(async () => {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 10px 18px;
+  padding: 8px 14px;
   color: var(--text-primary);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   transition: all var(--transition);
 }
@@ -729,35 +720,42 @@ onMounted(async () => {
   background: var(--bg-card-hover);
 }
 .theme-icon { font-size: 18px; }
-.shortcuts-list { display: flex; flex-direction: column; gap: 12px; }
-.shortcut-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
-.shortcut-keys { display: flex; gap: 4px; align-items: center; }
+.shortcut-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+}
+.shortcut-item { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.shortcut-keys { display: flex; gap: 3px; align-items: center; flex-shrink: 0; }
 .shortcut-keys kbd {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 3px 8px;
-  font-size: 12px;
+  padding: 2px 6px;
+  font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-primary);
 }
-.shortcut-desc { font-size: 13px; color: var(--text-secondary); }
-.about-info { display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-secondary); }
-.about-info strong { color: var(--text-primary); font-size: 16px; }
-.cred-form { display: flex; flex-direction: column; gap: 14px; }
-.cred-row { display: flex; flex-direction: column; gap: 6px; }
+.shortcut-desc { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.settings-foot { margin-top: 16px; text-align: center; font-size: 12px; color: var(--text-muted); }
+.cred-form { display: flex; flex-direction: column; gap: 10px; }
+.cred-row { display: flex; flex-direction: column; gap: 5px; }
 .cred-input {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  padding: 8px 10px;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13px;
 }
 .cred-input:focus { outline: none; border-color: var(--primary); }
 .cred-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
-.cred-actions { display: flex; align-items: center; gap: 12px; }
+.cred-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .cred-state { font-size: 13px; color: var(--text-muted); }
 .cred-state.err { color: var(--danger, #e5484d); }
 .cred-hint { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+
+@media (max-width: 640px) {
+  .settings-view { padding: 14px; }
+  .shortcut-grid { grid-template-columns: 1fr; }
+}
 </style>

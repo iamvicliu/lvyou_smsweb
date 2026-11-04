@@ -390,7 +390,7 @@ body {
 .panel-tab.active { background: var(--bg-card); color: var(--text-primary); font-weight: 600; box-shadow: var(--shadow-sm); }
 .panel-tab b { font-weight: 600; font-size: 12px; color: var(--text-muted); }
 .panel-tab.active b { color: var(--primary); }
-.panel-filters { display: flex; gap: 8px; flex: 1; min-width: 240px; }
+.panel-filters { display: flex; gap: 8px; flex: 1; min-width: 240px; flex-wrap: wrap; }
 .panel-filters .search-input { max-width: none; padding: 8px 12px 8px 34px; }
 .panel-filters .filter-select { padding: 8px 12px; }
 .panel-select {
@@ -430,6 +430,81 @@ body {
   padding: 6px 8px;
 }
 .panel-cancel:hover { color: var(--text-primary); }
+
+/* ── Record panels: title, filters and table in one block ── */
+.panel-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.panel-title b { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.records-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 16px 4px;
+}
+.records-panel .panel-head { padding-bottom: 10px; margin-bottom: 0; }
+.records-scroll { overflow-x: auto; }
+/* Fixed column widths only work if the table can keep them; below that the
+   browser squeezes cells into each other, so scroll handled by .records-scroll. */
+.records-table { width: 100%; min-width: 700px; border-collapse: collapse; font-size: 13px; }
+.records-table.cols-8 { min-width: 880px; }
+.records-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.records-table td {
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+  /* Table cells must never wrap: the wrapper scrolls sideways instead, which
+     keeps the row height identical on phone and desktop. */
+  white-space: nowrap;
+}
+.records-table tbody tr:last-child td { border-bottom: none; }
+.records-table tbody tr:hover { background: var(--bg-card-hover); }
+.records-table .nowrap { white-space: nowrap; }
+.records-table .content { white-space: pre-wrap; word-break: break-word; min-width: 220px; vertical-align: top; }
+
+/* Long SMS bodies collapse to a few lines and open on click. */
+.clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  cursor: pointer;
+}
+.clamp.open { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.record-body.clamp { -webkit-line-clamp: 4; }
+.records-panel .empty-row,
+.device-panel .empty-row { padding: 28px 10px; text-align: center; color: var(--text-muted); }
+
+/* ── Phone layout: records stack into cards instead of a side-scrolling table ── */
+.record-list { display: none; }
+.record-item { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.record-item:last-child { border-bottom: none; }
+.record-top { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+.record-top .record-time { font-variant-numeric: tabular-nums; }
+.record-top .tag { margin-left: auto; }
+.record-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 4px; font-size: 13px; color: var(--text-secondary); }
+.record-sub .sep { color: var(--border-light); }
+.record-body { margin-top: 5px; font-size: 13px; line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; }
+.record-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+@media (max-width: 640px) {
+  .records-table-only { display: none; }
+  .record-list { display: block; }
+}
 
 /* ── Device cards ── */
 .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
@@ -476,13 +551,17 @@ body {
 .device-ip { font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace; font-size: 13px; color: var(--primary); margin-bottom: 3px; }
 .device-mac { font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace; font-size: 11px; color: var(--text-muted); margin-bottom: 12px; }
 
-.sims-info { background: var(--bg-input); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--border); }
-.sim-item { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.sims-info { background: var(--bg-input); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--border); overflow: hidden; }
+.sim-item { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; min-width: 0; }
 .sim-item:last-child { margin-bottom: 0; }
 .sim-label { font-size: 10px; background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; font-weight: 600; }
-.sim-op { font-size: 11px; color: var(--text-muted); }
-.sim-signal { font-size: 11px; color: var(--success); background: var(--success-glow); padding: 1px 7px; border-radius: 4px; margin-left: 4px; font-weight: 600; }
-.sim-num { font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace; font-size: 12px; margin-left: auto; color: var(--text-secondary); }
+.sim-op { font-size: 11px; color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sim-signal { font-size: 11px; color: var(--success); background: var(--success-glow); padding: 1px 7px; border-radius: 4px; margin-left: 4px; font-weight: 600; flex-shrink: 0; }
+.sim-num {
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace; font-size: 12px;
+  margin-left: auto; color: var(--text-secondary); max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .device-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); }
 
 .card-actions { display: flex; border-top: 1px solid var(--border); }
