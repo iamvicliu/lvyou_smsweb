@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -217,10 +218,16 @@ def api_daily_restart_get(device_id: int, db: Session = Depends(get_db)):
     response = _call(device, token, "dailyrst", timeout=10)
     if not _accepted(response):
         return _command_result(device, "dailyrst:query", response)
-    try:
-        hour = int(str(response.get("val") or "").strip())
-    except ValueError:
-        hour = -1
+    # X31v160 answers with note="Scheduled restart: every 1 day(s) at 4:00."
+    # and no ``val``; older builds put the hour in ``val``.
+    hour = -1
+    raw_val = str(response.get("val") or "").strip()
+    if raw_val.isdigit():
+        hour = int(raw_val)
+    else:
+        match = re.search(r"at\s+(\d{1,2}):(\d{2})", str(response.get("note") or ""))
+        if match:
+            hour = int(match.group(1))
     return {
         "ok": True,
         "enabled": 0 <= hour <= 23,
