@@ -212,6 +212,15 @@ export function probeDeviceCredential(payload) {
   return api.post('/api/settings/device/probe', payload)
 }
 
+// ── 209 SIM guard ───────────────────────────────────────────────────────────
+export function fetchSimGuard() {
+  return api.get('/api/settings/sim-guard')
+}
+
+export function saveSimGuard(enabled) {
+  return api.post('/api/settings/sim-guard', { enabled })
+}
+
 // ── call recordings ─────────────────────────────────────────────────────────
 export function fetchRecordingConfig() {
   return api.get('/api/recordings/config')

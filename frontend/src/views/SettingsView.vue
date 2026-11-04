@@ -215,6 +215,40 @@
         </div>
       </div>
 
+      <div class="settings-card wide">
+        <h3>SIM 异常自愈</h3>
+        <div class="cred-form">
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">209 自动重启卡槽</span>
+              <span class="setting-desc">
+                板子报 SIM 初始化失败（209）时先观察 30 秒，期间恢复就取消；
+                观察期满只做一次 stat 确认，确认仍异常才重启对应卡槽。
+                同一台设备 24 小时内最多自动重启一次，观察和取消不推送。
+              </span>
+            </div>
+            <button class="theme-toggle" :disabled="guardBusy" @click="toggleGuard">
+              <span>{{ guardEnabled ? '已开启' : '已关闭' }}</span>
+            </button>
+          </div>
+          <div v-if="guardItems.length" class="answer-list">
+            <div v-for="g in guardItems" :key="g.device_id" class="answer-row">
+              <span class="answer-name">{{ g.name }}</span>
+              <span class="answer-values">{{ guardLine(g) }}</span>
+            </div>
+          </div>
+          <p class="cred-hint">
+            冷却时间按设备计算，收到 204（卡就绪）即清零。仅“已重启 / 已恢复 / 需人工”会推送到 Bark 与钉钉。
+          </p>
+          <div class="cred-actions">
+            <button class="theme-toggle" :disabled="guardBusy" @click="loadGuard">
+              <span>刷新状态</span>
+            </button>
+            <span class="cred-state" :class="{ err: guardError }">{{ guardStatus }}</span>
+          </div>
+        </div>
+      </div>
+
       <div class="settings-card">
         <h3>关于</h3>
         <div class="about-info">
@@ -238,10 +272,12 @@ import {
   fetchAnswerConfig,
   fetchRecordingConfig,
   fetchNotifySettings,
+  fetchSimGuard,
   getDeviceCredentialSetting,
   rotateRecordingToken,
   saveDeviceCredentialSetting,
   saveAnswerConfig,
+  saveSimGuard,
   setupRecordings,
   saveNotifySettings,
 } from '../api/endpoints'
@@ -285,6 +321,61 @@ const answerBusy = ref(false)
 const answerStatus = ref('')
 const answerError = ref(false)
 const answerDevices = ref([])
+
+const guardEnabled = ref(true)
+const guardItems = ref([])
+const guardBusy = ref(false)
+const guardStatus = ref('')
+const guardError = ref(false)
+
+function guardLine(g) {
+  const parts = []
+  if (g.detail) parts.push(g.detail)
+  else parts.push('暂无记录')
+  if (g.pending && g.pending.length) {
+    const p = g.pending[0]
+    parts.push(`观察中 · 卡${p.slot} · 还剩 ${p.remaining}s`)
+  }
+  if (g.cooldown) parts.push(`冷却 ${(g.cooldown / 3600).toFixed(1)}h`)
+  if (g.updated) {
+    const d = new Date(g.updated * 1000)
+    parts.push(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
+  }
+  return parts.join(' · ')
+}
+
+async function loadGuard() {
+  try {
+    const resp = await fetchSimGuard()
+    const data = resp.data || {}
+    guardEnabled.value = !!data.enabled
+    guardItems.value = data.items || []
+    guardError.value = false
+    guardStatus.value = ''
+  } catch (e) {
+    guardStatus.value = '读取失败'
+    guardError.value = true
+  }
+}
+
+async function toggleGuard() {
+  if (guardBusy.value) return
+  guardBusy.value = true
+  guardStatus.value = '保存中…'
+  try {
+    const resp = await saveSimGuard(!guardEnabled.value)
+    const data = resp.data || {}
+    guardEnabled.value = !!data.enabled
+    guardItems.value = data.items || []
+    guardError.value = false
+    guardStatus.value = guardEnabled.value ? '已开启' : '已关闭'
+  } catch (e) {
+    guardStatus.value = '保存失败'
+    guardError.value = true
+  } finally {
+    guardBusy.value = false
+  }
+}
 
 function formatSize(bytes) {
   const n = Number(bytes || 0)
@@ -529,6 +620,7 @@ onMounted(async () => {
     loadCredential(),
     loadNotify(),
     loadRecordingConfig(),
+    loadGuard(),
     devicesStore.refresh(),
   ])
   loadAnswerConfig()

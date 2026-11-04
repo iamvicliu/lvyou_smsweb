@@ -185,7 +185,10 @@ class NoteReq(BaseModel):
 # IMSI and signal, which is what the card label is built from.
 # 695/696 report whether a call recording reached the panel, so the call
 # list can show "录音已存 / 录音失败" instead of silently losing the file.
-PUSH_MSG_CODES = "204,205,209,402,501,502,503,601,602,603,620,621,622,623,695,696"
+# 998 is the board's periodic PING: the vendor's monitoring guide names it as
+# the primary online signal and forbids periodic active polling, so the panel
+# needs it enabled or it would have to fall back to querying the boards.
+PUSH_MSG_CODES = "204,205,209,402,501,502,503,601,602,603,620,621,622,623,695,696,998"
 
 
 class PushSetupReq(BaseModel):

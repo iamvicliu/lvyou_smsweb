@@ -71,10 +71,15 @@ KEY_BARK_URL = "bark_url"
 
 POLL_INTERVAL_SECONDS = 60
 SMS_FETCH_LIMIT = 50
-# A board keeps its last "online" flag until a poll actually reaches it. Three
-# consecutive unreachable polls (~3 min at the 60 s interval) is long enough to
-# survive a router hiccup or a one-minute reboot, short enough that a pulled
-# power plug shows up quickly.
+# 厂商《监测设备可用状态》把检测方式分成两类：被动监听（998 PING）是
+# 7×24 的推荐做法，主动 stat / querysms 只允许"心跳超时验证、用户单次刷新、
+# 故障诊断"，并且明确禁止定时轮询——即使间隔 ≥600 秒也会让板子持续卡顿。
+# 所以全量轮询降级为兜底：只有某台设备的最后活跃时间超过心跳窗口
+# （pingIntvl×3+15 秒，默认 345 秒）才补拉一次，其余时间完全靠推送。
+DEFAULT_PING_INTERVAL = 110
+PING_GRACE_SECONDS = 15
+# Fallback polls run back-to-back while a board is down, so keep the old
+# three-strikes rule before flipping the dashboard to offline.
 OFFLINE_AFTER_FAILS = 3
 _poll_failures: Dict[str, int] = {}
 
@@ -323,13 +328,41 @@ def _track_reachability(device: Device, ok: bool) -> None:
         device.status = "offline"
 
 
-def poll_all() -> Dict[str, Any]:
+def _ping_window_seconds(db: Session, device: Device) -> int:
+    """Offline window for this board: pingIntvl×3+15, learned from ``stat``."""
+    key = f"ping_intvl:{device.devId or device.ip}"
+    try:
+        interval = int(get_setting(db, key, "") or 0)
+    except (TypeError, ValueError):
+        interval = 0
+    if not 5 <= interval <= 600:
+        interval = DEFAULT_PING_INTERVAL
+    return interval * 3 + PING_GRACE_SECONDS
+
+
+def poll_all(force: bool = False) -> Dict[str, Any]:
+    """Catch-up pull for boards that stopped pushing.
+
+    With PING (998) enabled a healthy board is refreshed by its own pushes, so
+    the scheduled run skips it entirely. Only a board whose last sign of life
+    is older than its heartbeat window — or one that has never reported — gets
+    the full ``querysms`` / ``querytel`` sweep, which is the vendor's
+    "verify after missed heartbeats" case. ``force`` bypasses the check and is
+    only used by the manual "sync from board" action.
+    """
     db = SessionLocal()
-    totals = {"devices": 0, "sms": 0, "calls": 0}
+    totals = {"devices": 0, "polled": 0, "skipped": 0, "sms": 0, "calls": 0}
+    now = int(time.time())
     try:
         devices = db.query(Device).all()
         for device in devices:
             totals["devices"] += 1
+            if not force:
+                age = now - int(device.lastSeen or 0)
+                if age < _ping_window_seconds(db, device):
+                    totals["skipped"] += 1
+                    continue
+            totals["polled"] += 1
             try:
                 got = poll_device(db, device)
                 totals["sms"] += got["sms"]
@@ -505,7 +538,35 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
                 db.commit()
             except Exception:
                 db.rollback()
+        # 204 = usable again: cancel any pending 209 check. 205 = card pulled:
+        # nothing to restart. 209 = init failed: hand it to the guard, which
+        # observes first and only then decides whether a slotrst is warranted.
+        try:
+            from backend import simguard
+
+            guard_dev = (device.devId if device and device.devId else dev_id)
+            if msg_type == 204:
+                simguard.note_recovered(guard_dev, int(data.get("slot", 1) or 1), label=label)
+            elif msg_type == 205:
+                simguard.note_removed(guard_dev, int(data.get("slot", 1) or 1))
+            elif msg_type == 209:
+                simguard.note_209(
+                    guard_dev,
+                    device.ip if device else source_ip,
+                    int(data.get("slot", 1) or 1),
+                    int(data.get("note") or 0),
+                    label=label,
+                    device_ts=int(data.get("msgTs") or 0),
+                )
+        except Exception:
+            logger.debug("simguard hook failed", exc_info=True)
         return {"status": "ok", "type": msg_type, "slot": slot}
+
+    if msg_type == 998:
+        # PING: the only job is to prove the board is alive. lastSeen and
+        # status were already refreshed above, so this path stays cheap — it
+        # runs every ~110 s per board and is the primary online signal.
+        return {"status": "ok", "type": 998}
 
     if msg_type in (501, 502):
         sms_ts = int(data.get("smsTs") or 0)
@@ -954,7 +1015,11 @@ async def messages_poll_loop() -> None:
         try:
             stats = await asyncio.to_thread(poll_all)
             if stats["sms"] or stats["calls"]:
-                logger.info("message poll: +%s sms, +%s calls", stats["sms"], stats["calls"])
+                logger.info(
+                    "catch-up poll: %s/%s boards, +%s sms, +%s calls",
+                    stats["polled"], stats["devices"], stats["sms"], stats["calls"],
+                )
         except Exception:
             logger.debug("message poll loop error", exc_info=True)
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
+

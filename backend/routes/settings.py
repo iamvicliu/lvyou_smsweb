@@ -34,10 +34,30 @@ class DeviceCredentialReq(BaseModel):
     applyToAll: bool = True
 
 
+class SimGuardReq(BaseModel):
+    enabled: bool = True
+
+
 @router.get("/api/settings/device")
 def get_device_setting():
     user, _ = get_device_credentials()
     return {"ok": True, "user": user, "passwordConfigured": device_credentials_configured()}
+
+
+@router.get("/api/settings/sim-guard")
+def get_sim_guard():
+    """209 守护的开关与每台设备最近一次判定，供设置页展示。"""
+    from backend import simguard
+
+    return simguard.snapshot()
+
+
+@router.post("/api/settings/sim-guard")
+def save_sim_guard(req: SimGuardReq):
+    from backend import simguard
+
+    simguard.set_enabled(bool(req.enabled))
+    return simguard.snapshot()
 
 
 @router.post("/api/settings/device")

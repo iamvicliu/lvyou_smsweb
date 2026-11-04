@@ -416,6 +416,7 @@ async def lifespan(app: FastAPI):
     app.state.executor = executor
     _auto_scan_task: Optional["asyncio.Task"] = None
     _messages_task: Optional["asyncio.Task"] = None
+    _simguard_task: Optional["asyncio.Task"] = None
     if _BACKGROUND_WORKER:
         # FIX(P1#12): periodic cleanup task for finished scans, expired tokens,
         # rate-limit events and stale device rows.
@@ -424,11 +425,20 @@ async def lifespan(app: FastAPI):
         # SMS / call catch-up poller; the webhook path delivers real-time events.
         from backend.messages import messages_poll_loop as _messages_poll_loop
         _messages_task = asyncio.create_task(_messages_poll_loop())
+        # 209 SIM 守护：观察期到期后单次 stat 确认，必要时重启卡槽。
+        from backend.simguard import simguard_loop as _simguard_loop
+        _simguard_task = asyncio.create_task(_simguard_loop())
     else:
         logger.info("background tasks disabled on this listener (BMWORKER=0)")
     try:
         yield
     finally:
+        if _simguard_task:
+            _simguard_task.cancel()
+            try:
+                await _simguard_task
+            except (asyncio.CancelledError, Exception):
+                pass
         if _messages_task:
             _messages_task.cancel()
             try:
