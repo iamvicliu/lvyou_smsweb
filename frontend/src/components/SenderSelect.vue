@@ -140,7 +140,7 @@ watch(
 .slot-chips { display: flex; gap: 8px; flex-shrink: 0; }
 .slot-chip {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
-  min-width: 104px; padding: 7px 12px; cursor: pointer;
+  min-width: 96px; padding: 4px 10px; cursor: pointer;
   background: var(--bg-input); border: 1px solid var(--border);
   border-radius: var(--radius-md); color: var(--text-primary);
   transition: border-color 0.15s, background 0.15s;

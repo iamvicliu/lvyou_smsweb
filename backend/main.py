@@ -867,6 +867,9 @@ def getallnumbers(db: Session, group: str = "") -> List[Dict[str, Any]]:
     gval = (group or "").strip()
     if gval and gval != "all":
         query = query.filter(Device.grp == gval)
+    # The sender picker keeps the order it receives here, so it must match the
+    # dashboard card order the operator arranged by drag-and-drop.
+    query = query.order_by(Device.sort_order.asc(), Device.created.desc(), Device.id.desc())
     numbers = []
     for device in query.all():
         for num, op, slot in [(device.sim1number, device.sim1operator, 1), (device.sim2number, device.sim2operator, 2)]:

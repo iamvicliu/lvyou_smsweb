@@ -8,11 +8,11 @@
       </div>
     </div>
 
-    <div v-show="mode === 'sms'" class="form-grid">
-      <div class="sender-block">
+    <div v-show="mode === 'sms'" class="send-form">
+      <div class="sender-cell">
         <SenderSelect :numbers="numbers" :value="sender" @update:value="emit('update:sender', $event)" />
       </div>
-      <div class="number-block">
+      <div class="number-cell">
         <input
           :value="toPhone"
           class="form-input"
@@ -34,15 +34,15 @@
           >{{ maskPhone(phone) }}</button>
         </div>
       </div>
-      <textarea :value="content" class="form-textarea" placeholder="短信内容..." rows="2" @input="emit('update:content', $event.target.value)"></textarea>
       <button class="btn-send" :disabled="loading || !sender || !toPhone || !content" @click="emit('send')">发送</button>
+      <textarea :value="content" class="form-textarea" placeholder="短信内容..." rows="2" @input="emit('update:content', $event.target.value)"></textarea>
     </div>
 
-    <div v-show="mode === 'dial'" class="form-grid">
-      <div class="sender-block">
+    <div v-show="mode === 'dial'" class="send-form">
+      <div class="sender-cell">
         <SenderSelect :numbers="numbers" :value="sender" @update:value="emit('update:sender', $event)" />
       </div>
-      <div class="number-block">
+      <div class="number-cell">
         <input
           :value="dialPhone"
           class="form-input"
@@ -64,8 +64,8 @@
           >{{ maskPhone(phone) }}</button>
         </div>
       </div>
-      <textarea :value="ttsText" class="form-textarea" placeholder="TTS内容（可选）..." rows="2" @input="emit('update:ttsText', $event.target.value)"></textarea>
       <button class="btn-send" :disabled="loading || !sender || !dialPhone" @click="emit('dial')">拨号</button>
+      <textarea :value="ttsText" class="form-textarea" placeholder="TTS内容（可选）..." rows="2" @input="emit('update:ttsText', $event.target.value)"></textarea>
     </div>
 
     <datalist id="saved-phone-list">
@@ -111,16 +111,61 @@ function maskPhone(phone) {
 </script>
 
 <style scoped>
-.sender-block, .number-block { grid-column: span 2; }
-.number-block { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.number-block .form-input { flex: 1; min-width: 200px; }
-.saved-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.saved-label { font-size: 12px; color: var(--text-muted); }
+/* Two rows: picker + recipient + send on top, message body underneath. */
+.send-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.sender-cell { min-width: 0; }
+.number-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.number-cell .form-input { flex: 1; min-width: 170px; padding: 9px 12px; }
+.saved-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.saved-label { font-size: 11px; color: var(--text-muted); }
 .saved-chip {
   background: var(--bg-input); border: 1px solid var(--border);
   color: var(--text-secondary); border-radius: 999px;
-  padding: 5px 11px; font-size: 12px; cursor: pointer;
+  padding: 3px 9px; font-size: 11px; line-height: 1.4; cursor: pointer;
   font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
 }
 .saved-chip:hover { border-color: var(--primary); color: var(--primary); }
+.btn-send {
+  height: 38px;
+  padding: 0 22px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-send:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--shadow-glow); }
+.btn-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.form-textarea {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 52px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 9px 12px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.form-textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+@media (max-width: 720px) {
+  .send-form { grid-template-columns: 1fr; }
+  /* Single column: keep the button after the body text, not between the
+     number field and the message. */
+  .send-form .form-textarea { order: 3; }
+  .btn-send { order: 4; width: 100%; }
+}
 </style>
