@@ -119,6 +119,102 @@
         </div>
       </div>
 
+      <div class="settings-card wide">
+        <h3>通话录音</h3>
+        <div class="cred-form">
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">录音上传通道</span>
+              <span class="setting-desc">
+                {{ recTokenConfigured ? '已生成专用上传令牌（' + recTokenHint + '）' : '尚未生成上传令牌' }}
+                · 已存 {{ recCount }} 条 / {{ formatSize(recBytes) }}
+                · {{ recFfmpeg ? 'MP3 转码可用' : '容器缺少 ffmpeg，只能播放 AMR' }}
+              </span>
+            </div>
+            <button class="theme-toggle" :disabled="recBusy" @click="applyRecordingUrls">
+              <span>{{ recBusy ? '下发中…' : '下发到全部设备' }}</span>
+            </button>
+          </div>
+          <p class="cred-hint">
+            下发会把录音上传地址写入每块板子的 telRecUrl，并打开 695/696 上报；
+            通话结束后面板自动收下 AMR 并转成 MP3。令牌写在地址里，不需要额外登录。
+          </p>
+          <div class="cred-actions">
+            <button class="theme-toggle" @click="router.push('/calls')">
+              <span>打开通话记录</span>
+            </button>
+            <button class="theme-toggle" :disabled="recBusy" @click="rotateToken">
+              <span>重置上传令牌</span>
+            </button>
+            <span class="cred-state" :class="{ err: recError }">{{ recStatus }}</span>
+          </div>
+        </div>
+
+        <hr class="card-divider" />
+
+        <div class="cred-form">
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">自动接听 / 录音模式</span>
+              <span class="setting-desc">
+                录音只在“接听并录音”模式下产生；板子会在通话结束后自动上传。
+                建议最大通话时长不超过 15 秒，过长时板子可能来不及上传。
+              </span>
+            </div>
+          </div>
+          <div class="answer-form">
+            <label class="cred-row compact">
+              <span class="setting-label">范围</span>
+              <select v-model="answerDevice" class="cred-input">
+                <option :value="0">全部设备</option>
+                <option v-for="d in devicesStore.devices" :key="d.id" :value="d.id">
+                  {{ d.alias || d.devId || d.ip }}
+                </option>
+              </select>
+            </label>
+            <label class="cred-row compact">
+              <span class="setting-label">模式</span>
+              <select v-model.number="answerMode" class="cred-input">
+                <option :value="0">不接听</option>
+                <option :value="1">自动接听</option>
+                <option :value="2">接听并录音</option>
+                <option :value="3">自动挂断</option>
+              </select>
+            </label>
+            <label class="cred-row compact">
+              <span class="setting-label">响铃</span>
+              <input v-model.number="answerRing" type="number" min="0" max="30" class="cred-input" />
+            </label>
+            <label class="cred-row compact">
+              <span class="setting-label">最长秒数</span>
+              <input v-model.number="answerSeconds" type="number" min="1" max="999" class="cred-input" />
+            </label>
+            <button class="theme-toggle" :disabled="answerBusy" @click="applyAnswerMode">
+              <span>{{ answerBusy ? '应用中…' : '应用' }}</span>
+            </button>
+          </div>
+          <p class="cred-hint">
+            两个卡槽一起设置。该配置写入板子“运行参数”，重启后保留。
+          </p>
+          <div v-if="answerDevices.length" class="answer-list">
+            <div v-for="d in answerDevices" :key="d.device_id" class="answer-row">
+              <span class="answer-name">{{ d.name }}</span>
+              <span v-if="d.ok" class="answer-values">
+                卡1 {{ d.slots['1'].mode_label }}（{{ d.slots['1'].ring }}声/{{ d.slots['1'].max_seconds }}秒）
+                · 卡2 {{ d.slots['2'].mode_label }}（{{ d.slots['2'].ring }}声/{{ d.slots['2'].max_seconds }}秒）
+              </span>
+              <span v-else class="cred-state err">{{ d.error || '读取失败' }}</span>
+            </div>
+          </div>
+          <div class="cred-actions">
+            <button class="theme-toggle" :disabled="answerBusy" @click="loadAnswerConfig">
+              <span>刷新板子当前设置</span>
+            </button>
+            <span class="cred-state" :class="{ err: answerError }">{{ answerStatus }}</span>
+          </div>
+        </div>
+      </div>
+
       <div class="settings-card">
         <h3>关于</h3>
         <div class="about-info">
@@ -139,9 +235,14 @@ import { useAuthStore, useDevicesStore } from '../stores'
 import { useTheme } from '../composables/useTheme'
 import { useDeviceActions } from '../composables/useDeviceActions'
 import {
+  fetchAnswerConfig,
+  fetchRecordingConfig,
   fetchNotifySettings,
   getDeviceCredentialSetting,
+  rotateRecordingToken,
   saveDeviceCredentialSetting,
+  saveAnswerConfig,
+  setupRecordings,
   saveNotifySettings,
 } from '../api/endpoints'
 
@@ -166,6 +267,152 @@ const barkHost = ref('')
 const savingBark = ref(false)
 const barkStatus = ref('')
 const barkError = ref(false)
+
+const recTokenConfigured = ref(false)
+const recTokenHint = ref('')
+const recCount = ref(0)
+const recBytes = ref(0)
+const recFfmpeg = ref(false)
+const recBusy = ref(false)
+const recStatus = ref('')
+const recError = ref(false)
+
+const answerDevice = ref(0)
+const answerMode = ref(2)
+const answerRing = ref(1)
+const answerSeconds = ref(15)
+const answerBusy = ref(false)
+const answerStatus = ref('')
+const answerError = ref(false)
+const answerDevices = ref([])
+
+function formatSize(bytes) {
+  const n = Number(bytes || 0)
+  if (!n) return '0 B'
+  if (n < 1024) return n + ' B'
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB'
+  return (n / 1024 / 1024).toFixed(1) + ' MB'
+}
+
+async function loadRecordingConfig() {
+  try {
+    const resp = await fetchRecordingConfig()
+    const data = resp.data || {}
+    recTokenConfigured.value = !!data.token_configured
+    recTokenHint.value = data.token_hint || ''
+    recCount.value = data.count || 0
+    recBytes.value = data.bytes || 0
+    recFfmpeg.value = !!data.ffmpeg
+    recError.value = !recTokenConfigured.value
+    recStatus.value = recTokenConfigured.value ? '' : '尚未下发录音地址'
+  } catch (e) {
+    recStatus.value = '读取失败'
+    recError.value = true
+  }
+}
+
+async function applyRecordingUrls() {
+  if (recBusy.value) return
+  const ids = (devicesStore.devices || []).map(d => d.id)
+  if (!ids.length) {
+    recStatus.value = '没有设备'
+    recError.value = true
+    return
+  }
+  recBusy.value = true
+  recStatus.value = '下发中…'
+  try {
+    const resp = await setupRecordings(ids)
+    const data = resp.data || {}
+    const failed = (data.items || []).filter(i => !i.ok)
+    recError.value = failed.length > 0
+    recStatus.value = failed.length
+      ? `${ids.length - failed.length} 台成功，${failed.length} 台失败：` +
+        failed.map(i => `${i.ip} ${i.error || ''}`).join('；')
+      : `已下发到 ${ids.length} 台设备`
+    await loadRecordingConfig()
+  } catch (e) {
+    recError.value = true
+    recStatus.value = (e.response && e.response.data && e.response.data.detail) || '下发失败'
+  } finally {
+    recBusy.value = false
+  }
+}
+
+async function rotateToken() {
+  if (!confirm('重置后旧地址立即失效，需要重新“下发到全部设备”。继续？')) return
+  recBusy.value = true
+  try {
+    await rotateRecordingToken()
+    recStatus.value = '令牌已重置，请重新下发到设备'
+    recError.value = true
+    await loadRecordingConfig()
+  } catch (e) {
+    recStatus.value = '重置失败'
+    recError.value = true
+  } finally {
+    recBusy.value = false
+  }
+}
+
+async function loadAnswerConfig() {
+  answerBusy.value = true
+  answerStatus.value = '读取中…'
+  try {
+    const resp = await fetchAnswerConfig()
+    answerDevices.value = (resp.data || {}).items || []
+    const failed = answerDevices.value.filter(d => !d.ok)
+    answerError.value = failed.length > 0
+    answerStatus.value = failed.length
+      ? `${failed.length} 台设备读取失败`
+      : `已读取 ${answerDevices.value.length} 台设备`
+  } catch (e) {
+    answerError.value = true
+    answerStatus.value = '读取失败'
+  } finally {
+    answerBusy.value = false
+  }
+}
+
+async function applyAnswerMode() {
+  if (answerBusy.value) return
+  const ids = answerDevice.value
+    ? [answerDevice.value]
+    : (devicesStore.devices || []).map(d => d.id)
+  if (!ids.length) {
+    answerStatus.value = '没有设备'
+    answerError.value = true
+    return
+  }
+  if (answerMode.value === 2 &&
+      !confirm('“接听并录音”会让这些卡槽自动接听所有来电（响铃 ' + answerRing.value +
+               ' 声后），最长通话 ' + answerSeconds.value + ' 秒。继续？')) {
+    return
+  }
+  answerBusy.value = true
+  answerStatus.value = '应用中…'
+  try {
+    const resp = await saveAnswerConfig({
+      device_ids: ids,
+      mode: answerMode.value,
+      ring: answerRing.value,
+      max_seconds: answerSeconds.value,
+    })
+    const data = resp.data || {}
+    const failed = (data.items || []).filter(i => !i.ok)
+    answerError.value = failed.length > 0
+    answerStatus.value = failed.length
+      ? `${ids.length - failed.length} 台成功，${failed.length} 台失败：` +
+        failed.map(i => `${i.ip} ${i.error || ''}`).join('；')
+      : `已应用到 ${ids.length} 台设备`
+    await loadAnswerConfig()
+  } catch (e) {
+    answerError.value = true
+    answerStatus.value = (e.response && e.response.data && e.response.data.detail) || '应用失败'
+  } finally {
+    answerBusy.value = false
+  }
+}
 
 async function loadNotify() {
   try {
@@ -278,7 +525,13 @@ onMounted(async () => {
     router.push('/login')
     return
   }
-  await Promise.all([loadCredential(), loadNotify()])
+  await Promise.all([
+    loadCredential(),
+    loadNotify(),
+    loadRecordingConfig(),
+    devicesStore.refresh(),
+  ])
+  loadAnswerConfig()
 })
 </script>
 
@@ -320,6 +573,14 @@ onMounted(async () => {
 .header-btn.logout:hover { background: var(--danger-glow); }
 .page-title { font-size: 24px; font-weight: 700; margin-bottom: 24px; letter-spacing: -0.02em; }
 .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+.settings-card.wide { grid-column: 1 / -1; }
+.card-divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+.answer-form { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.answer-form .cred-row.compact { min-width: 120px; flex: 0 1 160px; }
+.answer-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.answer-row { display: flex; gap: 12px; font-size: 13px; flex-wrap: wrap; }
+.answer-name { color: var(--text-primary); min-width: 160px; }
+.answer-values { color: var(--text-secondary); }
 .settings-card {
   background: var(--bg-card);
   border: 1px solid var(--border);

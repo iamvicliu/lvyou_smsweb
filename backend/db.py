@@ -167,6 +167,35 @@ class CallRecord(Base):
     dedup      = Column(String(40), unique=True, index=True)
 
 
+class CallRecording(Base):
+    """One AMR file uploaded by a board after a call.
+
+    The board posts the file to ``/api/recordings/upload/<token>`` with the
+    call context in the query string (devId, slot, phNum, telStartTs, ...).
+    Both that upload and the later 695/696 push land here, keyed by
+    ``dedup`` so a retried upload never creates a second row.
+    """
+    __tablename__ = "call_recordings"
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    device_id    = Column(Integer, index=True, nullable=True)
+    dev_id       = Column(String(128), index=True, default="")
+    slot         = Column(String(16), default="")
+    phone        = Column(String(64), default="", index=True)
+    start_ts     = Column(BigInteger, default=0, index=True)
+    connected_ts = Column(BigInteger, default=0)
+    end_ts       = Column(BigInteger, default=0)
+    media_id     = Column(String(160), default="")
+    filename     = Column(String(160), default="")
+    size         = Column(Integer, default=0)
+    duration     = Column(Integer, default=0)
+    stored_name  = Column(String(200), default="")
+    status       = Column(String(16), default="stored")
+    note         = Column(String(255), default="")
+    source_ip    = Column(String(64), default="")
+    created      = Column(String(32), default="")
+    dedup        = Column(String(120), unique=True, index=True)
+
+
 class SmsJob(Base):
     """Track one sendsms command from local queue to the board's final report.
 

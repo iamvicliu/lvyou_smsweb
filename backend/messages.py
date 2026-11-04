@@ -29,7 +29,15 @@ import httpx
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
-from backend.db import CallRecord, Device, SessionLocal, Setting, SmsJob, SmsRecord
+from backend.db import (
+    CallRecord,
+    CallRecording,
+    Device,
+    SessionLocal,
+    Setting,
+    SmsJob,
+    SmsRecord,
+)
 from backend.device_client import ensure_device_token
 from backend.http_client import get_sync_client
 from backend.settings_store import device_credential
@@ -565,6 +573,9 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
             _run_async(send_bark, f"绿邮 · 短信{text}", f"{label} {job.slot}\n{job.phone}")
         return {"status": "ok", "type": 503, "smsSt": sms_st}
 
+    if msg_type in (695, 696):
+        return _ingest_recording_push(db, data, msg_type, device, dev_id)
+
     if msg_type in CALL_EVENT_TYPES:
         slot = f"sim{data.get('slot', 1)}"
         phone = str(data.get("phNum") or "")
@@ -615,6 +626,98 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
         return {"status": "ok", "stored": inserted, "id": rec_id, "type": msg_type}
 
     return {"status": "ignored", "type": msg_type}
+
+
+def recording_dedup(dev_id: str, start_ts: int, media_id: str) -> str:
+    """Same key the upload endpoint and the 695/696 push share.
+
+    The board copies its ``telMediaId`` into the upload URL, and the server
+    echoes that value back as ``media_id``, so the push can find the row the
+    upload created even when it arrives before the hangup record.
+    """
+    return f"{dev_id or '-'}|{int(start_ts or 0)}|{media_id or '-'}"[:120]
+
+
+def _ingest_recording_push(
+    db: Session,
+    data: Dict[str, Any],
+    msg_type: int,
+    device: Optional[Device],
+    dev_id: str,
+) -> Dict[str, Any]:
+    """Apply one 695 (upload ok) / 696 (upload failed) report.
+
+    The file itself arrives through the upload endpoint; this only flips the
+    row's state or, when an upload never landed, records the failure so the
+    call list can explain the missing audio.
+    """
+    start_ts = int(data.get("telStartTs") or 0)
+    media_id = str(data.get("telMediaId") or "").strip()[:150]
+    phone = str(data.get("phNum") or "")
+    slot = f"sim{data.get('slot', 1)}"
+    ident = dev_id or (device.devId if device else "") or "-"
+
+    row = (
+        db.query(CallRecording)
+        .filter(CallRecording.dedup == recording_dedup(ident, start_ts, media_id))
+        .first()
+    )
+    if row is None and media_id:
+        row = (
+            db.query(CallRecording)
+            .filter(CallRecording.dev_id == ident,
+                    CallRecording.media_id == media_id)
+            .order_by(CallRecording.id.desc())
+            .first()
+        )
+    if row is None and start_ts:
+        # A board that never reached the upload URL still reports 696, and
+        # telStartTs is the one field the call record and the push share.
+        row = (
+            db.query(CallRecording)
+            .filter(CallRecording.dev_id == ident,
+                    CallRecording.start_ts == start_ts)
+            .order_by(CallRecording.id.desc())
+            .first()
+        )
+    if row is None:
+        row = CallRecording(
+            dedup=recording_dedup(ident, start_ts, media_id or f"push{msg_type}"),
+            created=_now_str(),
+            dev_id=ident,
+            slot=slot,
+            phone=phone,
+            start_ts=start_ts,
+            media_id=media_id,
+        )
+        db.add(row)
+
+    row.device_id = device.id if device else row.device_id
+    row.slot = row.slot or slot
+    row.phone = row.phone or phone
+    row.start_ts = row.start_ts or start_ts
+    row.connected_ts = row.connected_ts or int(data.get("telConnectedTs") or 0)
+    row.end_ts = row.end_ts or int(data.get("telEndTs") or 0)
+    if media_id:
+        row.media_id = media_id
+
+    if msg_type == 695:
+        # Only an upload that actually stored bytes may claim "stored".
+        if not row.stored_name:
+            row.status = "reported"
+            row.note = "板子报告上传成功，但面板没有收到文件"
+        else:
+            row.status = "stored"
+            row.note = ""
+    else:
+        row.status = "failed"
+        row.note = str(data.get("note") or "录音上报失败")[:255]
+    db.commit()
+
+    if msg_type == 696:
+        logger.warning("recording upload failed dev=%s slot=%s phone=%s: %s",
+                       ident, slot, phone, row.note)
+    return {"status": "ok", "type": msg_type, "recording_id": row.id}
 
 
 def _delivery_id(value: Any) -> str:

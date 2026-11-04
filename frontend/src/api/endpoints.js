@@ -211,3 +211,42 @@ export function saveDeviceCredentialSetting(payload) {
 export function probeDeviceCredential(payload) {
   return api.post('/api/settings/device/probe', payload)
 }
+
+// ── call recordings ─────────────────────────────────────────────────────────
+export function fetchRecordingConfig() {
+  return api.get('/api/recordings/config')
+}
+
+export function setupRecordings(deviceIds) {
+  return api.post('/api/recordings/setup', { device_ids: deviceIds })
+}
+
+export function rotateRecordingToken() {
+  return api.post('/api/recordings/token')
+}
+
+export function fetchRecordingsPage({ page = 1, pageSize = 30, q = '', deviceId = 0 } = {}) {
+  return api.get('/api/recordings', {
+    params: { page, page_size: pageSize, q, device_id: deviceId }
+  })
+}
+
+export function deleteRecording(id) {
+  return api.delete('/api/recordings/' + id)
+}
+
+export function recordingAudioUrl(id) {
+  return '/api/recordings/' + id + '/audio'
+}
+
+export function recordingDownloadUrl(id) {
+  return '/api/recordings/' + id + '/download'
+}
+
+export function fetchAnswerConfig() {
+  return api.get('/api/recordings/answer')
+}
+
+export function saveAnswerConfig(payload) {
+  return api.post('/api/recordings/answer', payload)
+}

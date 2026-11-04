@@ -514,6 +514,9 @@ async def token_auth_mw(request: Request, call_next):
         or path == "/static"
         or path.startswith("/static/")
         or path in _PUBLIC_PATHS
+        # Board recording uploads carry their own token in the path; the
+        # board has no panel session and cannot send a bearer header.
+        or path.startswith("/api/recordings/upload/")
     ):
         return await call_next(request)
     token, via_cookie = _extract_request_token(request)
@@ -873,6 +876,7 @@ from backend.routes.scan import router as scan_router
 from backend.routes.config import router as config_router
 from backend.routes.settings import router as settings_router
 from backend.routes.messages import router as messages_router
+from backend.routes.recordings import router as recordings_router
 from backend.routes import auth as _auth_mod
 from backend.routes import devices as _devices_mod
 from backend.routes import scan as _scan_mod
@@ -945,6 +949,7 @@ app.include_router(scan_router)
 app.include_router(config_router)
 app.include_router(settings_router)
 app.include_router(messages_router)
+app.include_router(recordings_router)
 
 # ── Device query helpers (used by routes) ────────────────────────────────────
 # NOTE: getallnumbers() is defined once, earlier in this module. It filters

@@ -14,7 +14,15 @@ from urllib.parse import parse_qsl
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from backend.db import CallRecord, Device, SessionLocal, SmsJob, SmsRecord, get_db
+from backend.db import (
+    CallRecord,
+    CallRecording,
+    Device,
+    SessionLocal,
+    SmsJob,
+    SmsRecord,
+    get_db,
+)
 from backend.messages import (
     KEY_BARK_URL,
     KEY_NOTIFY_SECRET,
@@ -67,6 +75,69 @@ def _row_sim_number(sim_map: Dict[int, tuple], device_id: Optional[int], slot: s
     if not pair:
         return ""
     return pair[0] if str(slot or "").endswith("1") else pair[1]
+
+
+def _recording_map(db: Session, rows) -> Dict[int, Dict[str, Any]]:
+    """CallRecord.id -> the recording that belongs to that call.
+
+    Uploads carry ``telStartTs`` from the board, which is the same value the
+    call record is keyed on, so the exact match covers the normal case. The
+    ±2 minute fallback keeps recordings attached when a board reports the
+    push with a slightly different timestamp than the call-detail push.
+    """
+    starts = [r.start_ts for r in rows if r.start_ts]
+    if not starts:
+        return {}
+    dev_ids = {r.dev_id for r in rows if r.dev_id}
+    query = db.query(CallRecording).filter(
+        CallRecording.start_ts >= min(starts) - 120,
+        CallRecording.start_ts <= max(starts) + 120,
+    )
+    if dev_ids:
+        query = query.filter(CallRecording.dev_id.in_(dev_ids))
+    recs = query.order_by(CallRecording.id.desc()).all()
+    if not recs:
+        return {}
+
+    def payload(rec: CallRecording) -> Dict[str, Any]:
+        return {
+            "id": rec.id,
+            "duration": rec.duration,
+            "size": rec.size,
+            "status": rec.status,
+            "note": rec.note,
+        }
+
+    exact: Dict[tuple, CallRecording] = {}
+    leftovers = []
+    for rec in recs:
+        key = (rec.dev_id, rec.start_ts)
+        if key in exact:
+            leftovers.append(rec)
+        else:
+            exact[key] = rec
+
+    out: Dict[int, Dict[str, Any]] = {}
+    unmatched = []
+    for row in rows:
+        rec = exact.get((row.dev_id, row.start_ts))
+        if rec is None:
+            unmatched.append(row)
+        else:
+            out[row.id] = payload(rec)
+    for row in unmatched:
+        best = None
+        for rec in leftovers or recs:
+            if rec.dev_id != row.dev_id:
+                continue
+            delta = abs((rec.start_ts or 0) - (row.start_ts or 0))
+            if delta <= 120 and (best is None or delta < best[0]):
+                best = (delta, rec)
+        if best is not None:
+            out[row.id] = payload(best[1])
+            if best[1] in leftovers:
+                leftovers.remove(best[1])
+    return out
 
 
 @router.get("/api/messages/sms")
@@ -142,6 +213,7 @@ def api_call_history(
         .all()
     )
     sim_map = _sim_number_map(db, rows)
+    rec_map = _recording_map(db, rows)
     return {
         "total": total,
         "page": page,
@@ -161,6 +233,7 @@ def api_call_history(
                 "duration": r.duration,
                 "start_ts": r.start_ts,
                 "call_time": r.call_time,
+                "recording": rec_map.get(r.id),
             }
             for r in rows
         ],

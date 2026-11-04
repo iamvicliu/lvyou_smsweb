@@ -42,18 +42,50 @@
             <th style="width:130px">号码</th>
             <th style="width:90px">状态</th>
             <th style="width:80px">时长</th>
+            <th style="width:120px">录音</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in items" :key="row.id">
+          <template v-for="row in items" :key="row.id">
+          <tr>
             <td class="muted">{{ row.call_time }}</td>
             <td>{{ row.device_name }}</td>
             <td>{{ simLabel(row.sim_slot, row.sim_number) }}</td>
             <td>{{ row.direction === 'incoming' ? '呼入' : '呼出' }}</td>
             <td class="mono">{{ row.phone }}</td>
             <td><span :class="['tag', tagClass(row.action)]">{{ actionLabel(row.action) }}</span></td>
-            <td>{{ formatDuration(row.duration) }}</td>
+            <td>{{ formatDuration(rowDuration(row)) }}</td>
+            <td>
+              <template v-if="row.recording && row.recording.status !== 'failed'">
+                <button class="rec-btn" @click="togglePlay(row.recording.id)">
+                  {{ playing === row.recording.id ? '收起' : '播放' }}
+                </button>
+                <a class="rec-link" :href="downloadUrl(row.recording.id)">下载</a>
+              </template>
+              <span v-else-if="row.recording" class="rec-fail" :title="row.recording.note">失败</span>
+              <span v-else class="muted">-</span>
+            </td>
           </tr>
+          <tr v-if="row.recording && playing === row.recording.id" class="rec-row">
+            <td colspan="8">
+              <audio
+                :src="audioUrl(row.recording.id)"
+                controls
+                autoplay
+                preload="none"
+                style="width:100%;max-width:520px"
+              />
+              <span class="muted rec-meta">
+                录音时长 {{ formatDuration(row.recording.duration) }} ·
+                {{ formatSize(row.recording.size) }}
+                <template v-if="row.recording.status === 'reported'">
+                  · 板子已上报，但面板没收到音频文件
+                </template>
+              </span>
+              <button class="rec-del" @click="removeRecording(row)">删除录音</button>
+            </td>
+          </tr>
+          </template>
         </tbody>
       </table>
       <div v-else class="empty">{{ loading ? '加载中...' : '暂无通话记录' }}</div>
@@ -75,7 +107,13 @@ import { useRouter } from 'vue-router'
 import { useAuthStore, useDevicesStore } from '../stores'
 import AppHeader from '../components/AppHeader.vue'
 import Pagination from '../components/Pagination.vue'
-import { fetchCallHistory, refreshMessages } from '../api/endpoints'
+import {
+  fetchCallHistory,
+  refreshMessages,
+  deleteRecording,
+  recordingAudioUrl,
+  recordingDownloadUrl
+} from '../api/endpoints'
 import { useTheme } from '../composables/useTheme'
 import { simLabel } from '../utils/format'
 
@@ -95,6 +133,7 @@ const total = ref(0)
 const pages = ref(0)
 const items = ref([])
 const devices = ref([])
+const playing = ref(0)
 
 let timer = null
 
@@ -109,6 +148,47 @@ function formatDuration(seconds) {
   if (!s) return '-'
   const m = Math.floor(s / 60)
   return m ? `${m}分${s % 60}秒` : `${s}秒`
+}
+
+// The 601 push carries no call length, so answered calls can arrive with 0.
+// The recording knows how long the audio is; show that instead of a dash.
+function rowDuration(row) {
+  if (Number(row.duration || 0) > 0) return row.duration
+  const rec = row.recording
+  if (rec && Number(rec.duration || 0) > 0) return rec.duration
+  return row.duration
+}
+
+function formatSize(bytes) {
+  const n = Number(bytes || 0)
+  if (!n) return '-'
+  if (n < 1024) return n + ' B'
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB'
+  return (n / 1024 / 1024).toFixed(1) + ' MB'
+}
+
+function togglePlay(id) {
+  playing.value = playing.value === id ? 0 : id
+}
+
+function audioUrl(id) {
+  return recordingAudioUrl(id)
+}
+
+function downloadUrl(id) {
+  return recordingDownloadUrl(id)
+}
+
+async function removeRecording(row) {
+  if (!row.recording) return
+  if (!confirm('删除这条录音？音频文件会一起删除，通话记录保留。')) return
+  try {
+    await deleteRecording(row.recording.id)
+    row.recording = null
+    playing.value = 0
+  } catch (e) {
+    alert((e.response && e.response.data && e.response.data.detail) || '删除失败')
+  }
 }
 
 async function load() {
@@ -184,5 +264,18 @@ th { color: var(--text-muted, #94a3b8); font-weight: 500; }
 .tag.ok { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 .tag.miss { background: rgba(239, 68, 68, 0.15); color: #f87171; }
 .tag.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.rec-btn {
+  background: transparent; color: #60a5fa; border: 1px solid #334155;
+  border-radius: 6px; padding: 2px 8px; font-size: 12px; cursor: pointer;
+}
+.rec-btn:hover { border-color: #60a5fa; }
+.rec-link { margin-left: 8px; color: var(--text-muted, #94a3b8); font-size: 12px; }
+.rec-fail { color: #f87171; font-size: 12px; }
+.rec-row td { background: rgba(15, 23, 42, 0.45); }
+.rec-meta { margin-left: 10px; font-size: 12px; }
+.rec-del {
+  margin-left: 12px; background: transparent; border: 1px solid #7f1d1d;
+  color: #f87171; border-radius: 6px; padding: 2px 8px; font-size: 12px; cursor: pointer;
+}
 .empty { padding: 40px; text-align: center; color: var(--text-muted, #94a3b8); }
 </style>
