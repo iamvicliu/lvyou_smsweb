@@ -64,12 +64,12 @@
                 </div>
                 <div class="slot-meta">
                   <span>信号 {{ slot.signal >= 0 ? slot.signal + '%' : '-' }}</span>
-                  <span>联网 {{ slot.net_enabled === null ? '-' : (slot.net_enabled ? '开' : '关') }}</span>
+                  <span>联网 {{ netLabel(slot) }}</span>
                 </div>
                 <div class="slot-actions">
                   <button class="btn-secondary mini" :disabled="busy" @click="slotRestart(slot.slot)">重启卡槽</button>
                   <button class="btn-secondary mini" :disabled="busy" @click="slotPower(slot)">{{ slot.state === 'POWOFF' ? '通电' : '断电' }}</button>
-                  <button class="btn-secondary mini" :disabled="busy" @click="slotNet(slot)">联网{{ slot.net_enabled ? '关' : '开' }}</button>
+                  <button class="btn-secondary mini" :disabled="busy" @click="slotNet(slot)">联网{{ slot.net_mode === 'on' ? '关' : '开' }}</button>
                 </div>
               </div>
             </div>
@@ -178,6 +178,14 @@ function slotTone(state) {
   if (state === 'OK') return 'ok'
   if (state === 'NS') return 'warn'
   return 'miss'
+}
+
+function netLabel(slot) {
+  if (slot.net_mode === 'on') return '开'
+  if (slot.net_mode === 'off') return '关'
+  if (slot.net_mode === 'auto') return '自动'
+  if (slot.net_enabled === null || slot.net_enabled === undefined) return '-'
+  return slot.net_enabled ? '开' : '关'
 }
 
 function uptimeLabel(minutes) {

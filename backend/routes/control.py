@@ -91,25 +91,38 @@ def _health_from_stat(device: Device, stat: Dict[str, Any]) -> Dict[str, Any]:
     wifi = stat.get("wifi") if isinstance(stat.get("wifi"), dict) else {}
     slots = stat.get("slotInfo") if isinstance(stat.get("slotInfo"), dict) else {}
     sim_net = stat.get("simNet") if isinstance(stat.get("simNet"), list) else []
+    slot_net = stat.get("slotNet") if isinstance(stat.get("slotNet"), list) else []
     usr_plmn = stat.get("usrPLMN") if isinstance(stat.get("usrPLMN"), list) else []
 
     slot_rows: List[Dict[str, Any]] = []
     for slot in (1, 2):
         prefix = f"sim{slot}_"
+        stored_number = (device.sim1number if slot == 1 else device.sim2number) or ""
+        stored_operator = (device.sim1operator if slot == 1 else device.sim2operator) or ""
+        # X31v160 drops msIsdn/scName from slotInfo, so fall back to what the
+        # operator typed into the panel instead of showing an empty field.
+        net_mode = str(slot_net[slot - 1]).lower() if len(slot_net) >= slot else ""
+        if net_mode:
+            net_enabled = net_mode == "on"
+        elif len(sim_net) >= slot:
+            net_enabled = bool(sim_net[slot - 1])
+        else:
+            net_enabled = None
         slot_rows.append({
             "slot": slot,
             "state": str(slots.get(f"slot{slot}_sta") or ""),
             "signal": _first_int(slots, f"{prefix}dbm"),
             "plmn": str(slots.get(f"{prefix}plmn") or ""),
-            "operator": str(slots.get(f"{prefix}scName") or ""),
-            "number": str(slots.get(f"{prefix}msIsdn") or ""),
-            "net_enabled": bool(sim_net[slot - 1]) if len(sim_net) >= slot else None,
+            "operator": str(slots.get(f"{prefix}scName") or stored_operator),
+            "number": str(slots.get(f"{prefix}msIsdn") or stored_number),
+            "net_mode": net_mode,
+            "net_enabled": net_enabled,
             "user_plmn": str(usr_plmn[slot - 1]) if len(usr_plmn) >= slot else "",
         })
 
     # Firmware has used schRstHour in the published API and older aliases in
     # some builds; accept any *RstHour key so the card survives an OTA rename.
-    daily_hour = _first_int(stat, "schRstHour", "dailyRstHour", "dailyrst")
+    daily_hour = _first_int(stat, "rstHour", "schRstHour", "dailyRstHour", "dailyrst")
     if daily_hour < 0:
         for key, value in stat.items():
             if str(key).lower().endswith("rsthour"):
