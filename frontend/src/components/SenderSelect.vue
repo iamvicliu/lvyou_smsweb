@@ -41,9 +41,10 @@ const boards = computed(() => {
   for (const n of props.numbers) {
     const id = String(n.deviceId)
     if (!map.has(id)) {
+      const name = n.deviceAlias || n.deviceName || n.ip || id
       map.set(id, {
         value: id,
-        label: `${n.deviceName || n.ip || id} · ${n.ip || ''}`.trim(),
+        label: `${name} · ${n.ip || ''}`.trim(),
         slots: {}
       })
     }

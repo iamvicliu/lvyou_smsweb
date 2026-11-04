@@ -872,6 +872,7 @@ def getallnumbers(db: Session, group: str = "") -> List[Dict[str, Any]]:
         for num, op, slot in [(device.sim1number, device.sim1operator, 1), (device.sim2number, device.sim2operator, 2)]:
             if num and num.strip():
                 numbers.append({"deviceId": device.id, "deviceName": device.devId or device.ip,
+                                "deviceAlias": device.alias or "",
                                 "ip": device.ip, "grp": device.grp or "",
                                 "number": num.strip(), "operator": op or "", "slot": slot})
     return numbers
