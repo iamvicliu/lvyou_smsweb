@@ -14,12 +14,12 @@
           <div class="id-cell"><span>设备 ID</span><b class="mono">{{ device.devId || '-' }}</b></div>
           <div class="id-cell"><span>IP</span><b class="mono">{{ device.ip }}</b></div>
           <div class="id-cell"><span>MAC</span><b class="mono">{{ device.mac || '-' }}</b></div>
-          <div class="id-cell"><span>分组</span><b>{{ device.grp || 'auto' }}</b></div>
+          <div class="id-cell"><span>分组</span><b>{{ groupLabel(device.grp) }}</b></div>
         </div>
 
         <section class="block">
           <div class="block-head">
-            <h4>线路</h4>
+            <h4>卡槽与网络</h4>
             <div class="head-actions">
               <span v-if="health" class="firmware mono">{{ health.firmware || '-' }}</span>
               <button class="btn-secondary mini" :disabled="healthLoading" @click="loadHealth">
@@ -46,18 +46,21 @@
               />
 
               <div class="slot-facts">
-                <span class="truncate" :title="slot.operator">{{ slot.operator || '运营商未知' }}</span>
+                <span
+                  :class="['truncate', simTone(slot.operator)]"
+                  :title="simToneHint(slot.operator) || slot.operator"
+                >{{ operatorLabel(slot.operator) || '运营商未知' }}</span>
                 <span>信号 {{ slot.signal >= 0 ? slot.signal + '%' : '-' }}</span>
                 <span>联网 {{ netLabel(slot) }}</span>
               </div>
 
               <div class="slot-actions">
-                <button class="btn-secondary mini" :disabled="busy" @click="slotRestart(slot)">重启</button>
+                <button class="btn-secondary mini" :disabled="busy" title="重启这个卡槽，约 30 秒恢复" @click="slotRestart(slot)">重启卡槽</button>
                 <button class="btn-secondary mini" :disabled="busy" @click="slotPower(slot)">
-                  {{ slot.state === 'POWOFF' ? '通电' : '断电' }}
+                  {{ slot.state === 'POWOFF' ? '恢复供电' : '关闭电源' }}
                 </button>
                 <button class="btn-secondary mini" :disabled="busy" @click="slotNet(slot)">
-                  联网{{ slot.net_mode === 'on' ? '关' : '开' }}
+                  {{ slot.net_mode === 'on' ? '断开联网' : '恢复联网' }}
                 </button>
               </div>
             </div>
@@ -72,7 +75,7 @@
         <section class="block">
           <div class="block-head">
             <h4>运行状态</h4>
-            <span class="hint">仅打开时读取一次</span>
+            <span class="hint">打开详情时读取一次，可点上方「刷新状态」</span>
           </div>
           <div v-if="health" class="stat-grid">
             <div class="stat"><span>运行时长</span><b>{{ uptimeLabel(health.uptime) }}</b></div>
@@ -112,7 +115,7 @@
                 <select v-model.number="dailyHour" class="form-input hour-select" :disabled="busy || !dailyEnabled">
                   <option v-for="h in 24" :key="h" :value="h - 1">{{ String(h - 1).padStart(2, '0') }}:00 后</option>
                 </select>
-                <button class="btn-secondary mini" :disabled="busy" @click="applyDaily">应用</button>
+                <button class="btn-secondary mini" :disabled="busy" @click="applyDaily">保存定时设置</button>
               </div>
               <p class="hint">开机满 4 小时后才触发，分钟数由板子随机错开。</p>
             </div>
@@ -158,9 +161,6 @@
         </section>
       </div>
 
-      <div class="modal-footer">
-        <button class="btn-cancel" @click="emit('close')">关闭</button>
-      </div>
     </div>
   </div>
 </template>
@@ -173,7 +173,7 @@ import {
   rebootDevice,
   saveDailyRestart
 } from '../api/endpoints'
-import { operatorLabel } from '../utils/format'
+import { groupLabel, operatorLabel, simTone, simToneHint } from '../utils/format'
 
 const props = defineProps({
   detail: { type: Object, required: true },
@@ -507,6 +507,8 @@ onMounted(() => {
 .msg.ok { color: var(--success); }
 .msg.bad { color: var(--danger); }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bad { color: var(--danger); font-weight: 600; }
+.warn { color: var(--warning); }
 @media (max-width: 640px) {
   .identity { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .slot-row, .stat-grid, .maint-grid { grid-template-columns: 1fr; }

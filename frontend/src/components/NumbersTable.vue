@@ -2,7 +2,7 @@
 import { storeToRefs } from 'pinia'
 
 import { useDevicesStore } from '../stores'
-import { numberParts, operatorLabel } from '../utils/format'
+import { numberParts, operatorLabel, simTone, simToneHint } from '../utils/format'
 
 const devicesStore = useDevicesStore()
 const { filteredNumbers } = storeToRefs(devicesStore)
@@ -29,7 +29,9 @@ const { filteredNumbers } = storeToRefs(devicesStore)
             </template>
             <template v-else>{{ numberParts(n.number).note }}</template>
           </td>
-          <td>{{ operatorLabel(n.operator) || '-' }}</td>
+          <td :class="simTone(n.operator)" :title="simToneHint(n.operator)">
+            {{ operatorLabel(n.operator) || '-' }}
+          </td>
           <td>{{ n.deviceName }}</td>
           <td class="mono">{{ n.ip }}</td>
           <td>SIM{{ n.slot }}</td>
@@ -58,7 +60,7 @@ const { filteredNumbers } = storeToRefs(devicesStore)
         <span class="mono">{{ n.ip }}</span>
         <template v-if="operatorLabel(n.operator)">
           <span class="sep">·</span>
-          <span>{{ operatorLabel(n.operator) }}</span>
+          <span :class="simTone(n.operator)">{{ operatorLabel(n.operator) }}</span>
         </template>
       </div>
     </div>
@@ -69,6 +71,8 @@ const { filteredNumbers } = storeToRefs(devicesStore)
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .number { font-size: 14px; color: var(--text-primary); }
 .num-note { margin-left: 6px; font-family: inherit; font-size: 12px; color: var(--text-muted); }
+.bad { color: var(--danger); font-weight: 600; }
+.warn { color: var(--warning); }
 .slot-chip {
   margin-left: auto;
   font-size: 11px;

@@ -29,8 +29,13 @@
           <input v-model="q" class="search-input" placeholder="搜索号码" @keyup.enter="reload" />
         </div>
         <button class="toolbar-btn" @click="reload">查询</button>
-        <button class="toolbar-btn" :disabled="syncing" @click="syncAll">
-          {{ syncing ? '同步中…' : '从板子同步' }}
+        <button
+          class="toolbar-btn"
+          :disabled="syncing"
+          title="让面板马上向每块板子取一次最新通话"
+          @click="syncAll"
+        >
+          {{ syncing ? '同步中…' : '同步最新记录' }}
         </button>
       </div>
 
@@ -45,7 +50,7 @@
               <th style="width:140px">号码</th>
               <th style="width:80px">状态</th>
               <th style="width:80px">时长</th>
-              <th style="width:130px">录音</th>
+              <th style="width:240px">录音</th>
             </tr>
           </thead>
           <tbody>
@@ -59,33 +64,19 @@
               <td><span :class="['tag', tagClass(row.action)]">{{ actionLabel(row.action) }}</span></td>
               <td class="nowrap">{{ formatDuration(rowDuration(row)) }}</td>
               <td>
-                <template v-if="row.recording && row.recording.status !== 'failed'">
-                  <button class="rec-btn" @click="togglePlay(row.recording.id)">
-                    {{ playing === row.recording.id ? '收起' : '播放' }}
-                  </button>
-                  <a class="rec-link" :href="downloadUrl(row.recording.id)">下载</a>
-                </template>
-                <span v-else-if="row.recording" class="rec-fail" :title="row.recording.note">失败</span>
-                <span v-else class="muted">-</span>
-              </td>
-            </tr>
-            <tr v-if="row.recording && playing === row.recording.id" class="rec-row">
-              <td colspan="8">
-                <audio
+                <AudioClip
+                  v-if="row.recording && row.recording.status !== 'failed'"
                   :src="audioUrl(row.recording.id)"
-                  controls
-                  autoplay
-                  preload="none"
-                  style="width:100%;max-width:520px"
+                  :download="downloadUrl(row.recording.id)"
+                  :duration="row.recording.duration"
+                  :size="row.recording.size"
+                  can-delete
+                  @delete="removeRecording(row)"
                 />
-                <span class="muted rec-meta">
-                  录音时长 {{ formatDuration(row.recording.duration) }} ·
-                  {{ formatSize(row.recording.size) }}
-                  <template v-if="row.recording.status === 'reported'">
-                    · 板子已上报，但面板没收到音频文件
-                  </template>
+                <span v-else-if="row.recording" class="rec-fail" :title="row.recording.note">
+                  录音失败
                 </span>
-                <button class="rec-del" @click="removeRecording(row)">删除录音</button>
+                <span v-else class="muted">-</span>
               </td>
             </tr>
             </template>
@@ -114,26 +105,16 @@
             </template>
           </div>
           <div v-if="row.recording" class="record-actions">
-            <template v-if="row.recording.status !== 'failed'">
-              <button class="rec-btn" @click="togglePlay(row.recording.id)">
-                {{ playing === row.recording.id ? '收起' : '播放录音' }}
-              </button>
-              <a class="rec-link" :href="downloadUrl(row.recording.id)">下载</a>
-              <span class="muted rec-meta">
-                {{ formatDuration(row.recording.duration) }} · {{ formatSize(row.recording.size) }}
-              </span>
-            </template>
-            <span v-else class="rec-fail" :title="row.recording.note">录音失败</span>
-          </div>
-          <div v-if="row.recording && playing === row.recording.id" class="record-actions">
-            <audio
+            <AudioClip
+              v-if="row.recording.status !== 'failed'"
               :src="audioUrl(row.recording.id)"
-              controls
-              autoplay
-              preload="none"
-              style="width:100%"
+              :download="downloadUrl(row.recording.id)"
+              :duration="row.recording.duration"
+              :size="row.recording.size"
+              can-delete
+              @delete="removeRecording(row)"
             />
-            <button class="rec-del" style="margin-left:0" @click="removeRecording(row)">删除录音</button>
+            <span v-else class="rec-fail" :title="row.recording.note">录音失败</span>
           </div>
         </div>
       </div>
@@ -157,6 +138,7 @@ import { useAuthStore, useDevicesStore } from '../stores'
 import AppHeader from '../components/AppHeader.vue'
 import Pagination from '../components/Pagination.vue'
 import LiveCallPanel from '../components/LiveCallPanel.vue'
+import AudioClip from '../components/AudioClip.vue'
 import {
   fetchCallHistory,
   refreshMessages,
@@ -183,7 +165,6 @@ const total = ref(0)
 const pages = ref(0)
 const items = ref([])
 const devices = ref([])
-const playing = ref(0)
 
 let timer = null
 
@@ -209,18 +190,6 @@ function rowDuration(row) {
   return row.duration
 }
 
-function formatSize(bytes) {
-  const n = Number(bytes || 0)
-  if (!n) return '-'
-  if (n < 1024) return n + ' B'
-  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB'
-  return (n / 1024 / 1024).toFixed(1) + ' MB'
-}
-
-function togglePlay(id) {
-  playing.value = playing.value === id ? 0 : id
-}
-
 function audioUrl(id) {
   return recordingAudioUrl(id)
 }
@@ -235,7 +204,6 @@ async function removeRecording(row) {
   try {
     await deleteRecording(row.recording.id)
     row.recording = null
-    playing.value = 0
   } catch (e) {
     alert((e.response && e.response.data && e.response.data.detail) || '删除失败')
   }
@@ -303,19 +271,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .tag.ok { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 .tag.miss { background: rgba(239, 68, 68, 0.15); color: #f87171; }
 .tag.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
-.rec-btn {
-  background: transparent; color: var(--primary, #60a5fa); border: 1px solid var(--border);
-  border-radius: 6px; padding: 2px 10px; font-size: 12px; cursor: pointer;
-}
-.rec-btn:hover { border-color: var(--primary, #60a5fa); }
-.rec-link { margin-left: 8px; color: var(--text-muted, #94a3b8); font-size: 12px; }
-.rec-fail { color: #f87171; font-size: 12px; }
-.rec-row td { background: rgba(15, 23, 42, 0.45); }
-.rec-meta { margin-left: 10px; font-size: 12px; }
-.rec-del {
-  margin-left: 12px; background: transparent; border: 1px solid #7f1d1d;
-  color: #f87171; border-radius: 6px; padding: 2px 8px; font-size: 12px; cursor: pointer;
-}
+.rec-fail { color: var(--danger); font-size: 12px; }
 @media (max-width: 640px) {
   .calls-view { padding: 14px; }
   .panel-filters { min-width: 100%; flex-wrap: wrap; }

@@ -41,7 +41,7 @@
           <input v-model="searchText" class="search-input" placeholder="搜索设备 / IP / MAC / 号码" />
           <select v-model="groupFilter" class="filter-select">
             <option value="all">全部分组</option>
-            <option v-for="g in uniqueGroups.filter(x => x !== 'all')" :key="g" :value="g">{{ g }}</option>
+            <option v-for="g in uniqueGroups.filter(x => x !== 'all')" :key="g" :value="g">{{ groupLabel(g) }}</option>
           </select>
         </div>
         <label class="panel-select">
@@ -60,12 +60,12 @@
       <!-- The batch bar only exists while something is selected; otherwise the
            panel stays a single quiet block. -->
       <div v-if="selectedCount > 0" class="panel-actions">
-        <button class="toolbar-btn" @click="openWifiModal">WiFi</button>
-        <button class="toolbar-btn" @click="openOtaModal">OTA</button>
-        <button class="toolbar-btn" @click="openConfigModal">配置</button>
-        <button class="toolbar-btn" @click="setupPush" :disabled="pushing">{{ pushing ? '接入中…' : '接入推送' }}</button>
-        <button class="toolbar-btn" @click="batchTurnOffNet" :disabled="netBusy">{{ netBusy ? '处理中…' : '关闭联网' }}</button>
-        <button class="toolbar-btn" @click="openPasswordModal">改密码</button>
+        <button class="toolbar-btn" title="批量设置板子的 WiFi" @click="openWifiModal">设置 WiFi</button>
+        <button class="toolbar-btn" title="批量检查并升级板子固件" @click="openOtaModal">升级固件</button>
+        <button class="toolbar-btn" title="批量读取和修改板子配置" @click="openConfigModal">批量改配置</button>
+        <button class="toolbar-btn" title="让选中的板子把短信和来电推送到这个面板" @click="setupPush" :disabled="pushing">{{ pushing ? '设置中…' : '开启消息推送' }}</button>
+        <button class="toolbar-btn" title="关闭选中板子两张卡的移动网络" @click="batchTurnOffNet" :disabled="netBusy">{{ netBusy ? '处理中…' : '关闭卡槽联网' }}</button>
+        <button class="toolbar-btn" title="批量修改板子后台的管理员密码" @click="openPasswordModal">批量改密码</button>
         <span class="panel-spacer"></span>
         <button class="toolbar-btn danger" @click="batchDeleteSelected">删除</button>
         <button class="panel-cancel" @click="selectedIds = []">取消选择</button>
@@ -176,6 +176,7 @@ import { useConfigBatch } from '../composables/useConfigBatch'
 import { useDetail } from '../composables/useDetail'
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 import { useTheme } from '../composables/useTheme'
+import { groupLabel } from '../utils/format'
 import {
   batchBoardPassword,
   batchControlSlots,

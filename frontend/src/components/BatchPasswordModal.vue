@@ -3,7 +3,6 @@
     <div class="modal modal-lg">
       <div class="modal-header">
         <h3>批量修改板子密码</h3>
-        <button class="modal-close" @click="emit('close')">×</button>
       </div>
 
       <div class="modal-body">

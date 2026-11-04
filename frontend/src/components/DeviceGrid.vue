@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useDevicesStore, useScanStore } from '../stores'
 import { useDeviceActions } from '../composables/useDeviceActions'
 import { useDetail } from '../composables/useDetail'
-import { displayName, operatorLabel, prettyTime } from '../utils/format'
+import { displayName, groupLabel, operatorLabel, prettyTime, simTone, simToneHint } from '../utils/format'
 
 const props = defineProps({
   devices: { type: Array, default: () => [] },
@@ -81,9 +81,9 @@ function dropClass(id) {
       <div class="empty-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6z"/></svg>
       </div>
-      <p>暂无设备，请先扫描</p>
+      <p>还没有板子。点下面的按钮，在局域网里搜一遍。</p>
       <button class="empty-btn" @click="startScanAdd" :disabled="scanning">
-        {{ scanning ? '扫描中...' : '开始扫描' }}
+        {{ scanning ? '搜索中...' : '查找板子' }}
       </button>
     </div>
 
@@ -127,21 +127,29 @@ function dropClass(id) {
         >
           <div v-if="d.sims && d.sims.sim1 && (d.sims.sim1.number || d.sims.sim1.operator)" class="sim-item">
             <span class="sim-label">SIM1</span>
-            <span class="sim-op">{{ operatorLabel(d.sims.sim1.operator) || '-' }}</span>
+            <span
+              :class="['sim-op', simTone(d.sims.sim1.operator)]"
+              :title="simToneHint(d.sims.sim1.operator)"
+            >{{ operatorLabel(d.sims.sim1.operator) || '-' }}</span>
             <span class="sim-signal" v-if="d.sims.sim1.signal > 0">{{ d.sims.sim1.signal }}%</span>
             <span class="sim-num">{{ d.sims.sim1.number || '-' }}</span>
           </div>
           <div v-if="d.sims && d.sims.sim2 && (d.sims.sim2.number || d.sims.sim2.operator)" class="sim-item">
             <span class="sim-label">SIM2</span>
-            <span class="sim-op">{{ operatorLabel(d.sims.sim2.operator) || '-' }}</span>
+            <span
+              :class="['sim-op', simTone(d.sims.sim2.operator)]"
+              :title="simToneHint(d.sims.sim2.operator)"
+            >{{ operatorLabel(d.sims.sim2.operator) || '-' }}</span>
             <span class="sim-signal" v-if="d.sims.sim2.signal > 0">{{ d.sims.sim2.signal }}%</span>
             <span class="sim-num">{{ d.sims.sim2.number || '-' }}</span>
           </div>
         </div>
 
         <div class="device-meta">
-          <span class="device-group">{{ d.grp || 'auto' }}</span>
-          <span class="device-time">{{ prettyTime(d.lastSeen) }}</span>
+          <span class="device-group" title="设备分组">{{ groupLabel(d.grp) }}</span>
+          <span class="device-time" title="面板最后一次收到这块板子消息的时间">
+            {{ prettyTime(d.lastSeen) }}
+          </span>
         </div>
       </div>
 

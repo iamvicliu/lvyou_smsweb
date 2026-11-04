@@ -32,11 +32,21 @@
           <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
         </svg>
       </button>
-      <button class="header-btn primary" :disabled="scanning" @click="emit('scan')">
+      <button
+        class="header-btn primary"
+        :disabled="scanning"
+        title="在局域网里搜索还没加入面板的板子"
+        @click="emit('scan')"
+      >
         <span v-if="scanning" class="spinner" style="width:14px;height:14px;border-width:2px;margin-right:6px;vertical-align:middle;"></span>
-        {{ scanning ? '扫描中...' : '扫描' }}
+        {{ scanning ? '搜索中...' : '找板子' }}
       </button>
-      <button class="header-btn" :disabled="loading" @click="emit('refresh')">刷新</button>
+      <button
+        class="header-btn"
+        :disabled="loading"
+        title="重新读取当前页面的数据"
+        @click="emit('refresh')"
+      >刷新数据</button>
       <button class="header-btn logout" @click="emit('logout')">退出</button>
     </div>
   </header>
@@ -68,10 +78,20 @@ const router = useRouter()
   color: var(--text-muted, #94a3b8);
   border: 1px solid transparent;
   border-radius: 8px;
-  padding: 6px 12px;
+  padding: 7px 14px;
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
 }
-.nav-link:hover { color: var(--text, #e2e8f0); background: var(--bg-hover, rgba(148, 163, 184, 0.12)); }
-.nav-link.active { color: #fff; background: #10b981; }
+.nav-link { transition: color var(--transition), background var(--transition), box-shadow var(--transition); }
+.nav-link:hover:not(.active) {
+  color: var(--primary);
+  background: var(--primary-glow);
+}
+.nav-link.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark, #059669));
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+.nav-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 </style>

@@ -59,7 +59,7 @@
             placeholder="接通后播放的内容，例如：您的快递已放在门口"
           />
           <button class="btn-secondary mini" :disabled="isBusy(call) || !ttsText[call.id]" @click="playTts(call)">播放</button>
-          <button class="btn-secondary mini" :disabled="isBusy(call)" @click="send(call, 'stop_tts')">停止语音</button>
+          <button class="btn-secondary mini" :disabled="isBusy(call)" title="停止正在播放的语音" @click="send(call, 'stop_tts')">停止播放</button>
         </div>
         <div class="tool-row">
           <input
@@ -69,7 +69,7 @@
             placeholder="按键，例如 1 或 1234#"
           />
           <button class="btn-secondary mini" :disabled="isBusy(call) || !dtmfKeys[call.id]" @click="sendKeys(call)">发送按键</button>
-          <button class="btn-secondary mini" :disabled="isBusy(call)" @click="send(call, 'clear_keys')">清空按键</button>
+          <button class="btn-secondary mini" :disabled="isBusy(call)" title="清除已经发送过的按键记录" @click="send(call, 'clear_keys')">清除按键记录</button>
         </div>
       </div>
     </div>

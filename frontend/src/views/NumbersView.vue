@@ -21,7 +21,7 @@
           <input v-model="searchText" class="search-input" placeholder="搜索号码 / 设备 / IP" />
           <select v-model="groupFilter" class="filter-select">
             <option value="all">全部分组</option>
-            <option v-for="g in uniqueGroups.filter(x => x !== 'all')" :key="g" :value="g">{{ g }}</option>
+            <option v-for="g in uniqueGroups.filter(x => x !== 'all')" :key="g" :value="g">{{ groupLabel(g) }}</option>
           </select>
         </div>
       </div>
@@ -51,6 +51,7 @@ import Pagination from '../components/Pagination.vue'
 import { useLoading } from '../composables/useLoading'
 import { useDeviceActions } from '../composables/useDeviceActions'
 import { useTheme } from '../composables/useTheme'
+import { groupLabel } from '../utils/format'
 
 const router = useRouter()
 const authStore = useAuthStore()

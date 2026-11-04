@@ -31,3 +31,29 @@ export function numberParts(raw) {
   if (!m) return { number: '', note: s }
   return { number: m[1].trim(), note: m[2].trim() }
 }
+
+// The board reports SIM state in the same field as the carrier name. States
+// that mean "this card cannot be used" must look different from a carrier.
+const SIM_BAD = ['拒绝', '无卡', '卡异常', '异常', '受限', '未注册', '欠费', '停机', '故障', 'pin', 'puk']
+const SIM_WARN = ['启动', '搜索', '注册中', '初始化', '飞行']
+
+export function simTone(operator) {
+  const s = operatorLabel(operator).toLowerCase()
+  if (!s) return ''
+  if (SIM_BAD.some(k => s.includes(k))) return 'bad'
+  if (SIM_WARN.some(k => s.includes(k))) return 'warn'
+  return ''
+}
+
+export function simToneHint(operator) {
+  const tone = simTone(operator)
+  if (tone === 'bad') return '板子报告这张卡当前不可用（拒绝 / 无卡 / 卡异常等）'
+  if (tone === 'warn') return '这张卡还在注册网络，稍后再看'
+  return ''
+}
+
+export function groupLabel(grp) {
+  const g = String(grp || '').trim()
+  if (!g || g.toLowerCase() === 'auto') return '未分组'
+  return g
+}

@@ -39,7 +39,6 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-cancel" @click="emit('close')">关闭</button>
         <button class="btn-upgrade" :disabled="loading || upgrading || !updatableCount" @click="emit('upgrade')">
           {{ upgrading ? '升级中...' : '升级' }}
         </button>

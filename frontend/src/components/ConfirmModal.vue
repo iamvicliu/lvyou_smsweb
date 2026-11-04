@@ -3,7 +3,6 @@
     <div class="modal modal-sm">
       <div class="modal-header">
         <h3>{{ confirmState.title }}</h3>
-        <button class="modal-close" @click="cancel">×</button>
       </div>
       <div v-if="confirmState.message" class="modal-body">
         <p class="confirm-message">{{ confirmState.message }}</p>

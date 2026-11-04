@@ -27,8 +27,13 @@
           <input v-model="q" class="search-input" placeholder="搜索号码 / 内容" @keyup.enter="reload" />
         </div>
         <button class="toolbar-btn" @click="reload">查询</button>
-        <button class="toolbar-btn" :disabled="syncing" @click="syncAll">
-          {{ syncing ? '同步中…' : '从板子同步' }}
+        <button
+          class="toolbar-btn"
+          :disabled="syncing"
+          title="让面板马上向每块板子取一次最新短信"
+          @click="syncAll"
+        >
+          {{ syncing ? '同步中…' : '同步最新记录' }}
         </button>
       </div>
 

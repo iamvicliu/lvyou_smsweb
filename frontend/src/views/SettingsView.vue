@@ -105,7 +105,7 @@
               <span>{{ savingBark ? '保存中…' : '保存' }}</span>
             </button>
             <button class="theme-toggle" :disabled="savingBark" @click="saveBark(true)">
-              <span>保存并测试</span>
+              <span>保存并发送测试推送</span>
             </button>
             <span class="cred-state" :class="{ err: barkError }">{{ barkStatus }}</span>
           </div>
@@ -128,7 +128,7 @@
               </span>
             </div>
             <button class="theme-toggle" :disabled="recBusy" @click="applyRecordingUrls">
-              <span>{{ recBusy ? '下发中…' : '下发到全部设备' }}</span>
+              <span>{{ recBusy ? '下发中…' : '下发录音设置到全部板子' }}</span>
             </button>
           </div>
           <p class="cred-hint">
@@ -140,7 +140,7 @@
               <span>打开通话记录</span>
             </button>
             <button class="theme-toggle" :disabled="recBusy" @click="rotateToken">
-              <span>重置上传令牌</span>
+              <span>更换上传令牌</span>
             </button>
             <span class="cred-state" :class="{ err: recError }">{{ recStatus }}</span>
           </div>
@@ -186,7 +186,7 @@
               <input v-model.number="answerSeconds" type="number" min="1" max="999" class="cred-input" />
             </label>
             <button class="theme-toggle" :disabled="answerBusy" @click="applyAnswerMode">
-              <span>{{ answerBusy ? '应用中…' : '应用' }}</span>
+              <span>{{ answerBusy ? '保存中…' : '保存到板子' }}</span>
             </button>
           </div>
           <p class="cred-hint">
@@ -206,7 +206,7 @@
           </div>
           <div class="cred-actions">
             <button class="theme-toggle" :disabled="answerBusy" @click="loadAnswerConfig">
-              <span>刷新板子当前设置</span>
+              <span>读取板子当前设置</span>
             </button>
             <span class="cred-state" :class="{ err: answerError }">{{ answerStatus }}</span>
           </div>
@@ -243,7 +243,7 @@
           </p>
           <div class="cred-actions">
             <button class="theme-toggle" :disabled="guardBusy" @click="loadGuard">
-              <span>刷新状态</span>
+              <span>刷新自愈状态</span>
             </button>
             <span class="cred-state" :class="{ err: guardError }">{{ guardStatus }}</span>
           </div>
