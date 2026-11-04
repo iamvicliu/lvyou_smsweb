@@ -2,12 +2,12 @@
   <div class="modal-overlay" @click.self="emit('close')">
     <div class="modal modal-lg">
       <div class="modal-header">
-        <h3>批量 OTA 升级</h3>
+        <h3>批量升级固件</h3>
         <button class="modal-close" @click="emit('close')">×</button>
       </div>
       <div class="modal-body">
         <div v-if="results.length === 0" class="ota-check-section">
-          <p>点击按钮检查选中设备的版本信息</p>
+          <p>点「检查版本」查看每块板子当前的固件版本</p>
           <button class="btn-check" :disabled="loading" @click="emit('check')">
             {{ loading ? '正在检查...' : '检查版本' }}
           </button>
@@ -40,7 +40,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn-upgrade" :disabled="loading || upgrading || !updatableCount" @click="emit('upgrade')">
-          {{ upgrading ? '升级中...' : '升级' }}
+          {{ upgrading ? '升级中...' : '开始升级' }}
         </button>
       </div>
     </div>
