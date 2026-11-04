@@ -366,8 +366,8 @@ onMounted(() => {
 .slot-head { display: flex; align-items: center; justify-content: space-between; }
 .slot-name { font-weight: 600; font-size: 13px; }
 .slot-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-secondary); }
-.slot-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.slot-actions .btn-secondary { flex: 1; min-width: 84px; }
+.slot-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.slot-actions .btn-secondary { padding: 6px 4px; font-size: 12px; white-space: nowrap; }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; }
 .tag.ok { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 .tag.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
