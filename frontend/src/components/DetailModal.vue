@@ -45,7 +45,7 @@
                 <span :style="{ color: memColor(health.memory) }">{{ health.memory >= 0 ? health.memory + '%' : '-' }}</span>
               </div>
               <div class="health-item"><span class="detail-label">联网通道</span><span>{{ channelLabel(health.net_channel) }}</span></div>
-              <div class="health-item"><span class="detail-label">WiFi</span><span>{{ health.wifi.ssid || '-' }} · {{ health.wifi.mode || '-' }}</span></div>
+              <div class="health-item"><span class="detail-label">WiFi</span><span>{{ (health.wifi && health.wifi.ssid) || '-' }} · {{ (health.wifi && health.wifi.mode) || '-' }}</span></div>
               <div class="health-item">
                 <span class="detail-label">每日重启</span>
                 <span>{{ health.daily_restart_enabled ? health.daily_restart_hour + ':00 左右' : '已关闭' }}</span>

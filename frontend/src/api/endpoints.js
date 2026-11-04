@@ -266,26 +266,26 @@ export function saveAnswerConfig(payload) {
 
 // ── board health / operational controls ─────────────────────────────────────
 export function fetchDeviceHealth(deviceId) {
-  return api.get('/api/devices/' + deviceId + '/health')
+  return api.get('/api/devices/' + deviceId + '/health').then(r => r.data)
 }
 
 export function rebootDevice(deviceId, delay = 5) {
-  return api.post('/api/devices/' + deviceId + '/reboot', { delay })
+  return api.post('/api/devices/' + deviceId + '/reboot', { delay }).then(r => r.data)
 }
 
 export function saveDailyRestart(deviceId, enabled, hour) {
-  return api.post('/api/devices/' + deviceId + '/daily-restart', { enabled, hour })
+  return api.post('/api/devices/' + deviceId + '/daily-restart', { enabled, hour }).then(r => r.data)
 }
 
 export function controlSimSlot(deviceId, slot, action, enabled = null) {
-  return api.post('/api/devices/' + deviceId + '/slot-control', { slot, action, enabled })
+  return api.post('/api/devices/' + deviceId + '/slot-control', { slot, action, enabled }).then(r => r.data)
 }
 
 // ── live call takeover ──────────────────────────────────────────────────────
 export function fetchLiveCalls() {
-  return api.get('/api/tel/live')
+  return api.get('/api/tel/live').then(r => r.data)
 }
 
 export function controlPhone(payload) {
-  return api.post('/api/tel/control', payload)
+  return api.post('/api/tel/control', payload).then(r => r.data)
 }
