@@ -254,6 +254,10 @@ export const useDevicesStore = defineStore('devices', () => {
     return move(device, { before: targetId })
   }
 
+  function moveAfter(device, targetId) {
+    return move(device, { after: targetId })
+  }
+
   async function deleteOne(device) {
     const notice = useNoticeStore()
     loading.value = true
@@ -318,6 +322,7 @@ export const useDevicesStore = defineStore('devices', () => {
     regroup,
     moveBy,
     moveBefore,
+    moveAfter,
     deleteOne,
     batchDeleteSelected,
     displayName

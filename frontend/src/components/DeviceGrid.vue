@@ -8,8 +8,7 @@ import { displayName, prettyTime } from '../utils/format'
 
 const props = defineProps({
   devices: { type: Array, default: () => [] },
-  selectedIds: { type: Array, default: () => [] },
-  sortMode: { type: Boolean, default: false }
+  selectedIds: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['toggle-select', 'show-detail', 'rename', 'set-group', 'delete', 'reorder', 'move-up', 'move-down'])
@@ -19,14 +18,15 @@ const { startScanAdd } = useDeviceActions()
 const { showDetail } = useDetail()
 
 const dragDevice = ref(null)
-const dragOverId = ref(null)
+// Drag is a plain reorder: which side of the hovered card decides where the
+// card lands, so there is no separate "sort mode" to toggle any more.
+const dropTarget = ref(null)
 
 function isSelected(id) {
   return props.selectedIds.includes(id)
 }
 
 function openDetail(device) {
-  if (props.sortMode) return
   showDetail(device)
 }
 
@@ -39,31 +39,39 @@ function handleDragStart(e, device) {
 function handleDragEnd(e) {
   e.target.classList.remove('dragging')
   dragDevice.value = null
-  dragOverId.value = null
+  dropTarget.value = null
 }
 
 function handleDragOver(e, device) {
+  if (!dragDevice.value || dragDevice.value.id === device.id) return
   e.preventDefault()
   e.dataTransfer.dropEffect = 'move'
-  if (dragDevice.value && dragDevice.value.id !== device.id) {
-    dragOverId.value = device.id
-  }
+  const rect = e.currentTarget.getBoundingClientRect()
+  const after = (e.clientX - rect.left) > rect.width / 2
+  dropTarget.value = { id: device.id, after }
 }
 
-function handleDragLeave() {
-  dragOverId.value = null
+function handleDragLeave(e) {
+  if (dropTarget.value && dropTarget.value.id === e.currentTarget.dataset.id) {
+    dropTarget.value = null
+  }
 }
 
 function handleDrop(e, targetDevice) {
   e.preventDefault()
-  if (dragDevice.value && dragDevice.value.id !== targetDevice.id) {
-    if (props.sortMode) {
-      emit('reorder', dragDevice.value, targetDevice)
-    } else {
-      emit('set-group', dragDevice.value, targetDevice.grp || 'auto')
-    }
+  const from = dragDevice.value
+  const target = dropTarget.value
+  if (from && target && from.id !== targetDevice.id) {
+    emit('reorder', from, targetDevice, target.after)
   }
-  dragOverId.value = null
+  dragDevice.value = null
+  dropTarget.value = null
+}
+
+function dropClass(id) {
+  const t = dropTarget.value
+  if (!t || t.id !== id) return ''
+  return t.after ? 'drop-after' : 'drop-before'
 }
 </script>
 
@@ -83,11 +91,14 @@ function handleDrop(e, targetDevice) {
       v-for="d in devices"
       :key="d.id"
       class="device-card"
-      :class="{
-        selected: isSelected(d.id),
-        offline: d.status !== 'online',
-        'drag-over': dragOverId === d.id
-      }"
+      :class="[
+        {
+          selected: isSelected(d.id),
+          offline: d.status !== 'online'
+        },
+        dropClass(d.id)
+      ]"
+      :data-id="d.id"
       draggable="true"
       @click="openDetail(d)"
       @dragstart="handleDragStart($event, d)"
@@ -135,8 +146,8 @@ function handleDrop(e, targetDevice) {
       </div>
 
       <div class="card-actions">
-        <button v-if="sortMode" class="card-btn" @click.stop="emit('move-up', d)" title="上移" aria-label="上移">↑</button>
-        <button v-if="sortMode" class="card-btn" @click.stop="emit('move-down', d)" title="下移" aria-label="下移">↓</button>
+        <button class="card-btn touch-sort" @click.stop="emit('move-up', d)" title="上移" aria-label="上移">↑</button>
+        <button class="card-btn touch-sort" @click.stop="emit('move-down', d)" title="下移" aria-label="下移">↓</button>
         <button class="card-btn" @click.stop="showDetail(d)" title="详情" aria-label="详情">
           <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/></svg>
         </button>
@@ -151,9 +162,6 @@ function handleDrop(e, targetDevice) {
         </button>
       </div>
 
-      <div class="drag-hint" v-if="dragOverId === d.id">
-        {{ sortMode ? '拖放到此位置排序' : '拖放到此处分组' }}
-      </div>
     </div>
   </div>
 </template>
@@ -165,23 +173,23 @@ function handleDrop(e, targetDevice) {
 }
 .device-card:active { cursor: grabbing; }
 .device-card.dragging { opacity: 0.5; transform: scale(0.95); }
-.device-card.drag-over {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--primary-glow);
-}
-.drag-hint {
+.device-card.drop-before,
+.device-card.drop-after { border-color: var(--primary); }
+/* Insertion marker: the card slides in on the side the cursor is on. */
+.device-card.drop-before::before,
+.device-card.drop-after::after {
+  content: '';
   position: absolute;
-  inset: 0;
-  background: rgba(59, 130, 246, 0.1);
-  border: 2px dashed var(--primary);
-  border-radius: var(--radius-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--primary);
-  pointer-events: none;
-  z-index: 10;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
+.device-card.drop-before::before { left: -9px; }
+.device-card.drop-after::after { right: -9px; }
+/* Touch devices cannot drag HTML5 cards, so they get arrows instead. */
+.touch-sort { display: none; }
+@media (hover: none) { .touch-sort { display: inline-flex; } }
 </style>

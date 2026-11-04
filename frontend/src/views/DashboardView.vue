@@ -16,7 +16,6 @@
       :offline="offlineCount"
       :total="devicesStore.devicesTotal"
       :sim-count="devicesStore.numbersTotal"
-      :trend-data="trendData"
     />
 
     <MessagePanel
@@ -32,85 +31,67 @@
       @dial="dial"
     />
 
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <input v-model="searchText" class="search-input" placeholder="搜索设备/IP/MAC/号码..." />
-        <select v-model="groupFilter" class="filter-select">
-          <option value="all">全部分组</option>
-          <option v-for="g in uniqueGroups.filter(x => x !== 'all')" :key="g" :value="g">{{ g }}</option>
-        </select>
+    <section class="device-panel">
+      <div class="panel-head">
+        <div class="panel-tabs">
+          <button class="panel-tab active">设备 <b>{{ devicesStore.devicesTotal }}</b></button>
+          <button class="panel-tab" @click="$router.push('/numbers')">号码 <b>{{ devicesStore.numbersTotal }}</b></button>
+        </div>
+        <div class="panel-filters">
+          <input v-model="searchText" class="search-input" placeholder="搜索设备 / IP / MAC / 号码" />
+          <select v-model="groupFilter" class="filter-select">
+            <option value="all">全部分组</option>
+            <option v-for="g in uniqueGroups.filter(x => x !== 'all')" :key="g" :value="g">{{ g }}</option>
+          </select>
+        </div>
+        <label class="panel-select">
+          <span :class="['checkbox', { checked: allSelected, partial: currentPageSelectedCount > 0 && !allSelected }]">{{ allSelected ? '✓' : (currentPageSelectedCount > 0 ? '−' : '') }}</span>
+          <input
+            type="checkbox"
+            :checked="allSelected"
+            :indeterminate="currentPageSelectedCount > 0 && !allSelected"
+            @change="toggleSelectAll"
+            style="display: none"
+          />
+          <span>{{ selectedCount > 0 ? `已选 ${selectedCount} 台` : '全选' }}</span>
+        </label>
       </div>
-      <div class="toolbar-right">
-        <button class="toolbar-btn" :class="{ active: sortMode }" @click="sortMode = !sortMode">
-          {{ sortMode ? '完成排序' : '排序' }}
-        </button>
-        <button class="toolbar-btn" @click="openWifiModal" :disabled="selectedCount === 0">WiFi</button>
-        <button class="toolbar-btn" @click="openOtaModal" :disabled="selectedCount === 0">OTA</button>
-        <button class="toolbar-btn" @click="openConfigModal" :disabled="selectedCount === 0">配置</button>
-        <button class="toolbar-btn" @click="setupPush" :disabled="selectedCount === 0 || pushing">
-          {{ pushing ? '接入中…' : '接入推送' }}
-        </button>
-        <button class="toolbar-btn" @click="batchTurnOffNet" :disabled="selectedCount === 0 || netBusy">
-          {{ netBusy ? '处理中…' : '批量关联网' }}
-        </button>
-        <button class="toolbar-btn" @click="openPasswordModal" :disabled="selectedCount === 0">
-          改密码
-        </button>
-        <button class="toolbar-btn danger" @click="batchDeleteSelected" :disabled="selectedCount === 0">删除</button>
+
+      <!-- The batch bar only exists while something is selected; otherwise the
+           panel stays a single quiet block. -->
+      <div v-if="selectedCount > 0" class="panel-actions">
+        <button class="toolbar-btn" @click="openWifiModal">WiFi</button>
+        <button class="toolbar-btn" @click="openOtaModal">OTA</button>
+        <button class="toolbar-btn" @click="openConfigModal">配置</button>
+        <button class="toolbar-btn" @click="setupPush" :disabled="pushing">{{ pushing ? '接入中…' : '接入推送' }}</button>
+        <button class="toolbar-btn" @click="batchTurnOffNet" :disabled="netBusy">{{ netBusy ? '处理中…' : '关闭联网' }}</button>
+        <button class="toolbar-btn" @click="openPasswordModal">改密码</button>
+        <span class="panel-spacer"></span>
+        <button class="toolbar-btn danger" @click="batchDeleteSelected">删除</button>
+        <button class="panel-cancel" @click="selectedIds = []">取消选择</button>
       </div>
-    </div>
 
-    <div class="select-bar">
-      <label class="select-all-label">
-        <span :class="['checkbox', { checked: currentPageSelectedCount > 0 && currentPageSelectedCount === filteredDevices.length }]">
-          {{ currentPageSelectedCount > 0 && currentPageSelectedCount === filteredDevices.length ? '✓' : (currentPageSelectedCount > 0 ? '−' : '') }}
-        </span>
-        <input
-          type="checkbox"
-          :checked="currentPageSelectedCount === filteredDevices.length && filteredDevices.length > 0"
-          :indeterminate="currentPageSelectedCount > 0 && currentPageSelectedCount < filteredDevices.length"
-          @change="toggleSelectAll"
-          style="display: none"
-        />
-        <span class="select-text">
-          {{ selectedCount > 0 ? `已选择 ${selectedCount} 台` : '全选' }}
-        </span>
-      </label>
-      <button v-if="selectedCount > 0" class="batch-cancel" @click="selectedIds = []">取消选择</button>
-    </div>
+      <DeviceGrid
+        :devices="filteredDevices"
+        :selected-ids="selectedIds"
+        @toggle-select="toggleSelect"
+        @show-detail="showDetail"
+        @rename="renameDevice"
+        @set-group="setGroup"
+        @delete="deleteDevice"
+        @reorder="reorderDevice"
+        @move-up="moveDeviceUp"
+        @move-down="moveDeviceDown"
+      />
 
-    <div class="tab-bar">
-      <button :class="['tab-btn', { active: activeTab === 'devices' }]" @click="activeTab = 'devices'">
-        设备列表 ({{ devicesStore.devicesTotal }})
-      </button>
-      <button :class="['tab-btn', { active: activeTab === 'numbers' }]" @click="$router.push('/numbers')">
-        号码列表 ({{ devicesStore.numbersTotal }})
-      </button>
-    </div>
-
-    <DeviceGrid
-      v-if="activeTab === 'devices'"
-      :devices="filteredDevices"
-      :selected-ids="selectedIds"
-      :sort-mode="sortMode"
-      @toggle-select="toggleSelect"
-      @show-detail="showDetail"
-      @rename="renameDevice"
-      @set-group="setGroup"
-      @delete="deleteDevice"
-      @reorder="reorderDevice"
-      @move-up="moveDeviceUp"
-      @move-down="moveDeviceDown"
-    />
-
-    <Pagination
-      v-if="activeTab === 'devices'"
-      :page="devicesStore.devicesPage"
-      :pages="devicesStore.devicesPages"
-      :page-size="devicesStore.devicesPageSize"
-      :total="devicesStore.devicesTotal"
-      @change="devicesStore.setDevicesPage"
-    />
+      <Pagination
+        :page="devicesStore.devicesPage"
+        :pages="devicesStore.devicesPages"
+        :page-size="devicesStore.devicesPageSize"
+        :total="devicesStore.devicesTotal"
+        @change="devicesStore.setDevicesPage"
+      />
+    </section>
 
     <WifiModal
       v-if="showWifiModal"
@@ -259,9 +240,7 @@ const {
   quickDial
 } = useDetail()
 
-const activeTab = ref('devices')
 const pushing = ref(false)
-const sortMode = ref(false)
 const netBusy = ref(false)
 const showPasswordModal = ref(false)
 const passwordRunning = ref(false)
@@ -363,15 +342,11 @@ async function setupPush() {
   }
 }
 
-const trendData = ref({
-  online: [65, 72, 68, 75, 80, 78, 82],
-  offline: [15, 12, 14, 10, 8, 10, 6],
-  total: [80, 84, 82, 85, 88, 88, 88],
-  sim: [160, 168, 164, 170, 176, 176, 176]
-})
-
 const currentPageSelectedCount = computed(
   () => devices.value.filter(d => selectedIds.value.includes(d.id)).length
+)
+const allSelected = computed(
+  () => filteredDevices.value.length > 0 && currentPageSelectedCount.value === filteredDevices.value.length
 )
 
 async function handleLogout() {

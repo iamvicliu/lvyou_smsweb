@@ -71,9 +71,10 @@ export function useDeviceActions() {
     await devicesStore.moveBy(device, 'down')
   }
 
-  async function reorderDevice(fromDevice, toDevice) {
+  async function reorderDevice(fromDevice, toDevice, after = false) {
     if (!fromDevice || !toDevice || fromDevice.id === toDevice.id) return
-    await devicesStore.moveBefore(fromDevice, toDevice.id)
+    if (after) await devicesStore.moveAfter(fromDevice, toDevice.id)
+    else await devicesStore.moveBefore(fromDevice, toDevice.id)
   }
 
   async function deleteDevice(device) {

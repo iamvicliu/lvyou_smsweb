@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import { fetchSmsJob, sendSms, dialDevice } from '../api/endpoints'
 import { useLoading } from './useLoading'
@@ -12,8 +12,13 @@ const commMode = ref('sms')
 const fromSelected = ref('')
 const toPhone = ref('')
 const content = ref('')
-const dialPhone = ref('')
 const ttsText = ref('')
+// SMS and dial address the same person; one shared field means switching tabs
+// keeps whatever number was already typed instead of blanking the form.
+const dialPhone = computed({
+  get: () => toPhone.value,
+  set: value => { toPhone.value = value }
+})
 
 // "queued" only means the board accepted the command. The board reports the
 // real result on a later webhook (402 -> 502 -> 503), so the UI keeps polling

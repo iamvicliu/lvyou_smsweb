@@ -163,8 +163,10 @@ class BatchDeleteReq(BaseModel):
 
 
 class MoveReq(BaseModel):
-    # Either drop before an explicit device (drag & drop) or step one slot.
+    # Drag & drop lands either side of the target card; direction steps one
+    # slot and is kept for the compact touch buttons.
     before: Optional[int] = None
+    after: Optional[int] = None
     direction: Optional[str] = None
 
 
@@ -383,13 +385,18 @@ def api_move_device(devid: int, req: MoveReq, db: Session = Depends(get_db)):
         if target is None:
             raise HTTPException(status_code=404, detail="目标设备不存在")
         devices.insert(target, device)
+    elif req.after is not None:
+        target = next((i for i, d in enumerate(devices) if d.id == req.after), None)
+        if target is None:
+            raise HTTPException(status_code=404, detail="目标设备不存在")
+        devices.insert(target + 1, device)
     elif req.direction in ("up", "down"):
         step = -1 if req.direction == "up" else 1
         devices.insert(max(0, min(len(devices), index + step)), device)
     else:
         raise HTTPException(status_code=400, detail="需要 before 或 direction")
     _renumber(db, devices)
-    _audit("device_move", detail=f"device={devid} before={req.before} dir={req.direction}")
+    _audit("device_move", detail=f"device={devid} before={req.before} after={req.after} dir={req.direction}")
     return {"ok": True, "order": [d.id for d in devices]}
 
 

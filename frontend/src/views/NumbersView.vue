@@ -11,34 +11,31 @@
       @open-settings="$router.push('/settings')"
     />
 
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <input v-model="searchText" class="search-input" placeholder="搜索号码/设备/IP..." />
-        <select v-model="groupFilter" class="filter-select">
-          <option value="all">全部分组</option>
-          <option v-for="g in uniqueGroups.filter(x => x !== 'all')" :key="g" :value="g">{{ g }}</option>
-        </select>
+    <section class="device-panel">
+      <div class="panel-head">
+        <div class="panel-tabs">
+          <button class="panel-tab" @click="$router.push('/dashboard')">设备 <b>{{ devicesStore.devicesTotal }}</b></button>
+          <button class="panel-tab active">号码 <b>{{ devicesStore.numbersTotal }}</b></button>
+        </div>
+        <div class="panel-filters">
+          <input v-model="searchText" class="search-input" placeholder="搜索号码 / 设备 / IP" />
+          <select v-model="groupFilter" class="filter-select">
+            <option value="all">全部分组</option>
+            <option v-for="g in uniqueGroups.filter(x => x !== 'all')" :key="g" :value="g">{{ g }}</option>
+          </select>
+        </div>
       </div>
-    </div>
 
-    <div class="tab-bar">
-      <button :class="['tab-btn', { active: false }]" @click="$router.push('/dashboard')">
-        设备列表 ({{ devicesStore.devicesTotal }})
-      </button>
-      <button :class="['tab-btn', { active: true }]">
-        号码列表 ({{ devicesStore.numbersTotal }})
-      </button>
-    </div>
+      <NumbersTable />
 
-    <NumbersTable />
-
-    <Pagination
-      :page="devicesStore.numbersPage"
-      :pages="devicesStore.numbersPages"
-      :page-size="devicesStore.numbersPageSize"
-      :total="devicesStore.numbersTotal"
-      @change="devicesStore.setNumbersPage"
-    />
+      <Pagination
+        :page="devicesStore.numbersPage"
+        :pages="devicesStore.numbersPages"
+        :page-size="devicesStore.numbersPageSize"
+        :total="devicesStore.numbersTotal"
+        @change="devicesStore.setNumbersPage"
+      />
+    </section>
   </div>
 </template>
 
