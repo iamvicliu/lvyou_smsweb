@@ -195,6 +195,7 @@ onUnmounted(() => {
 .live-phone { font-size: 16px; font-weight: 600; }
 .live-state { display: flex; align-items: center; gap: 10px; }
 .live-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.live-actions .btn-confirm, .live-actions .btn-secondary { flex: 0 0 auto; width: auto; }
 .live-tools { display: flex; flex-direction: column; gap: 8px; }
 .tool-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tool-input { flex: 1; min-width: 200px; padding: 8px 10px; font-size: 13px; }
