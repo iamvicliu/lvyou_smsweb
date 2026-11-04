@@ -23,6 +23,7 @@ Wi-Fi 抖动、刚重启还没注册完），直接重启会把一张正在用�
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -39,6 +40,11 @@ ENABLED_KEY = "simguard_enabled"
 MUTED_KEY = "simguard_muted"
 RESTART_KEY = "simguard_restart:{dev_id}"
 PING_KEY = "ping_intvl:{dev_id}"
+NOTIFY_KEY = "simguard_notify:{dev_id}:{slot}:{kind}"
+
+# 同一问题反复出现时逐级拉长提醒间隔：首次立即，之后 30 分钟、2 小时、
+# 6 小时，最后封顶 24 小时。卡恢复（204/OK）即清零，下次异常立刻提醒。
+NOTIFY_BACKOFF = (0, 30 * 60, 2 * 3600, 6 * 3600, 24 * 3600)
 
 NOTE_TEXT = {
     1: "PIN/PUK 锁定",
@@ -173,8 +179,67 @@ def _record(dev_id: str, slot: int, state: str, detail: str) -> None:
     logger.info("simguard %s slot%s: %s (%s)", dev_id or "-", slot, state, detail)
 
 
-def _push(title: str, body: str) -> None:
+def _notify_check(dev_id: str, slot: int, kind: str) -> tuple[bool, int]:
+    """(allowed, previous_count) for this device/slot/kind."""
+    from backend.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        raw = _setting(db, NOTIFY_KEY.format(dev_id=dev_id, slot=int(slot), kind=kind), "")
+        try:
+            st = json.loads(raw) if raw else {}
+        except ValueError:
+            st = {}
+        n = int(st.get("n") or 0)
+        last = float(st.get("last") or 0)
+        wait = NOTIFY_BACKOFF[min(n, len(NOTIFY_BACKOFF) - 1)]
+        if last and (time.time() - last) < wait:
+            logger.info("simguard 通知退避：%s 卡%s %s 第 %s 次，还需 %.0f 秒",
+                        dev_id, slot, kind, n + 1, wait - (time.time() - last))
+            return False, n
+        return True, n
+    finally:
+        db.close()
+
+
+def _notify_mark(dev_id: str, slot: int, kind: str, count: int) -> None:
+    from backend.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        _set_setting(db, NOTIFY_KEY.format(dev_id=dev_id, slot=int(slot), kind=kind),
+                     json.dumps({"n": int(count), "last": int(time.time())}))
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _notify_reset(dev_id: str, slot: int) -> None:
+    if not dev_id:
+        return
+    from backend.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        for kind in ("manual", "restarted", "info"):
+            _set_setting(db, NOTIFY_KEY.format(dev_id=dev_id, slot=int(slot), kind=kind), "")
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _push(title: str, body: str, *, dev_id: str = "", slot: int = 0,
+          kind: str = "info") -> None:
     """Best-effort Bark + DingTalk; a push failure must not break the guard."""
+    count = 0
+    if dev_id and kind != "recovered":
+        allowed, count = _notify_check(dev_id, slot, kind)
+        if not allowed:
+            return
+        if count:
+            body = f"（同一问题第 {count + 1} 次提醒）\n{body}"
     try:
         from backend.messages import _run_async, send_bark, send_dingtalk
 
@@ -182,6 +247,11 @@ def _push(title: str, body: str) -> None:
         _run_async(send_bark, title, body)
     except Exception:
         logger.debug("simguard push failed", exc_info=True)
+    if dev_id:
+        if kind == "recovered":
+            _notify_reset(dev_id, slot)
+        else:
+            _notify_mark(dev_id, slot, kind, count + 1)
 
 
 # ── Event intake ─────────────────────────────────────────────────────────────
@@ -233,7 +303,8 @@ def note_recovered(dev_id: str, slot: int, label: str = "") -> None:
         if prev == _STATE_RESTARTED:
             _record(dev_id, slot_i, _STATE_OK, "重启后收到 204，已恢复")
             _push("SIM 自愈 · 已恢复",
-                  f"{label or dev_id} 卡{slot_i}\n卡槽已重新注册，冷却计数清零")
+                  f"{label or dev_id} 卡{slot_i}\n卡槽已重新注册，冷却计数清零",
+                  dev_id=dev_id, slot=slot_i, kind="recovered")
         else:
             _record(dev_id, slot_i, _STATE_OK, "观察期内收到 204，已取消")
     elif prev == _STATE_RESTARTED:
@@ -242,7 +313,8 @@ def note_recovered(dev_id: str, slot: int, label: str = "") -> None:
         # operator the restart worked.
         _record(dev_id, slot_i, _STATE_OK, "重启后收到 204，已恢复")
         _push("SIM 自愈 · 已恢复",
-              f"{label or dev_id} 卡{slot_i}\n卡槽已重新注册，冷却计数清零")
+              f"{label or dev_id} 卡{slot_i}\n卡槽已重新注册，冷却计数清零",
+              dev_id=dev_id, slot=slot_i, kind="recovered")
     _clear_cooldown(dev_id)
 
 
@@ -330,7 +402,8 @@ def _advance(p: _Pending) -> None:
         except Exception as exc:
             _pending.pop(_key(p.dev_id, p.slot), None)
             _record(p.dev_id, p.slot, _STATE_MANUAL, f"取板子令牌失败：{exc}")
-            _push("SIM 自愈 · 需人工", f"{label} 卡{p.slot}\n209 后无法取到板子令牌，未重启")
+            _push("SIM 自愈 · 需人工", f"{label} 卡{p.slot}\n209 后无法取到板子令牌，未重启",
+                  dev_id=p.dev_id or device.devId or "", slot=p.slot, kind="manual")
             return
 
         res = device_call(device.ip, token, "stat", timeout=10)
@@ -340,7 +413,8 @@ def _advance(p: _Pending) -> None:
             _pending.pop(_key(p.dev_id, p.slot), None)
             note = str(res.get("note") or res.get("code") or "")
             _record(p.dev_id, p.slot, _STATE_MANUAL, f"stat 查询失败（{note}），未重启")
-            _push("SIM 自愈 · 需人工", f"{label} 卡{p.slot}\n收到 209，但 stat 查询失败：{note}")
+            _push("SIM 自愈 · 需人工", f"{label} 卡{p.slot}\n收到 209，但 stat 查询失败：{note}",
+                  dev_id=p.dev_id or device.devId or "", slot=p.slot, kind="manual")
             return
 
         _remember_ping_interval(db, p.dev_id or device.devId or "", res)
@@ -356,14 +430,16 @@ def _advance(p: _Pending) -> None:
             if sta == "OK":
                 _record(p.dev_id, p.slot, _STATE_OK, "重启后 stat 确认已恢复")
                 _push("SIM 自愈 · 已恢复",
-                      f"{label} 卡{p.slot}\n重启后已重新注册（{dev_time}），冷却计数清零")
+                      f"{label} 卡{p.slot}\n重启后已重新注册（{dev_time}），冷却计数清零",
+                      dev_id=p.dev_id or device.devId or "", slot=p.slot, kind="recovered")
                 _clear_cooldown(p.dev_id or device.devId or "")
             else:
                 _record(p.dev_id, p.slot, _STATE_MANUAL,
                         f"重启后仍为 {sta or '未知'}，转人工")
                 _push("SIM 自愈 · 需人工",
                       f"{label} 卡{p.slot}\n已自动重启一次，3 分钟后仍为 {sta or '未知'}\n"
-                      f"建议换卡或查欠费，24 小时内不会再次自动重启")
+                      f"建议换卡或查欠费，24 小时内不会再次自动重启",
+                      dev_id=p.dev_id or device.devId or "", slot=p.slot, kind="manual")
             return
 
         if sta == "OK":
@@ -372,20 +448,23 @@ def _advance(p: _Pending) -> None:
             _clear_cooldown(p.dev_id or device.devId or "")
             prev = (_states.get(p.dev_id or "-") or {}).get("state")
             if prev == _STATE_RESTARTED:
-                _push("SIM 自愈 · 已恢复", f"{label} 卡{p.slot}\n重启后已重新注册（{dev_time}）")
+                _push("SIM 自愈 · 已恢复", f"{label} 卡{p.slot}\n重启后已重新注册（{dev_time}）",
+                      dev_id=p.dev_id or device.devId or "", slot=p.slot, kind="recovered")
             return
 
         if sta in ("PIN", "LT"):
             _pending.pop(_key(p.dev_id, p.slot), None)
             reason = "PIN/PUK 锁定" if sta == "PIN" else "受限服务（欠费或注册被拒）"
             _record(p.dev_id, p.slot, _STATE_MANUAL, f"stat：{sta}（{reason}），不重启")
-            _push("SIM 自愈 · 需人工", f"{label} 卡{p.slot}\n卡槽状态 {sta}：{reason}\n重启解决不了，请查卡")
+            _push("SIM 自愈 · 需人工", f"{label} 卡{p.slot}\n卡槽状态 {sta}：{reason}\n重启解决不了，请查卡",
+                  dev_id=p.dev_id or device.devId or "", slot=p.slot, kind="manual")
             return
 
         if sta == "NOSIM":
             _pending.pop(_key(p.dev_id, p.slot), None)
             _record(p.dev_id, p.slot, _STATE_MANUAL, "stat：NOSIM，卡没插好")
-            _push("SIM 自愈 · 需人工", f"{label} 卡{p.slot}\nstat 报 NOSIM，请检查卡是否插好")
+            _push("SIM 自愈 · 需人工", f"{label} 卡{p.slot}\nstat 报 NOSIM，请检查卡是否插好",
+                  dev_id=p.dev_id or device.devId or "", slot=p.slot, kind="manual")
             return
 
         # NS / POWOFF / 空：确实是初始化没起来。
@@ -394,7 +473,8 @@ def _advance(p: _Pending) -> None:
             reason = NOTE_TEXT[p.note]
             _record(p.dev_id, p.slot, _STATE_MANUAL, f"note={p.note}（{reason}），不自动重启")
             _push("SIM 自愈 · 需人工",
-                  f"{label} 卡{p.slot}\n209 note={p.note}：{reason}\n卡槽 {sta or '未知'}，未自动重启")
+                  f"{label} 卡{p.slot}\n209 note={p.note}：{reason}\n卡槽 {sta or '未知'}，未自动重启",
+                  dev_id=p.dev_id or device.devId or "", slot=p.slot, kind="manual")
             return
 
         if p.note not in _RESTART_NOTES and p.stage != "recheck":
@@ -412,7 +492,8 @@ def _advance(p: _Pending) -> None:
             _record(p.dev_id, p.slot, _STATE_MANUAL,
                     f"24 小时内已自动重启过，还剩 {hours:.1f} 小时冷却")
             _push("SIM 自愈 · 需人工",
-                  f"{label} 卡{p.slot}\n卡槽 {sta}，但 24 小时冷却中（剩 {hours:.1f} 小时），未重启")
+                  f"{label} 卡{p.slot}\n卡槽 {sta}，但 24 小时冷却中（剩 {hours:.1f} 小时），未重启",
+                  dev_id=p.dev_id or device.devId or "", slot=p.slot, kind="manual")
             return
 
         r = device_call(device.ip, token, "slotrst",
@@ -425,7 +506,8 @@ def _advance(p: _Pending) -> None:
             note_txt = NOTE_TEXT.get(p.note, f"未知（{p.note}）")
             _push("SIM 自愈 · 已重启卡槽",
                   f"{label} 卡{p.slot}\n原因：209 note={p.note}（{note_txt}）\n"
-                  f"确认时卡槽状态 {sta or '未知'}，板子时间 {dev_time}\n已下发 slotrst，约 1 分钟后重新注册")
+                  f"确认时卡槽状态 {sta or '未知'}，板子时间 {dev_time}\n已下发 slotrst，约 1 分钟后重新注册",
+                  dev_id=p.dev_id or device.devId or "", slot=p.slot, kind="restarted")
             # Keep the entry so the loop checks once more after the card has
             # had time to re-register; a restart nobody confirms is how these
             # things silently stay broken.
@@ -435,7 +517,8 @@ def _advance(p: _Pending) -> None:
         else:
             note = str(r.get("note") or r.get("code") or "")
             _record(p.dev_id, p.slot, _STATE_MANUAL, f"slotrst 被拒绝：{note}")
-            _push("SIM 自愈 · 需人工", f"{label} 卡{p.slot}\nslotrst 失败：{note}")
+            _push("SIM 自愈 · 需人工", f"{label} 卡{p.slot}\nslotrst 失败：{note}",
+                  dev_id=p.dev_id or device.devId or "", slot=p.slot, kind="manual")
         _pending.pop(_key(p.dev_id, p.slot), None)
     finally:
         db.close()
