@@ -33,9 +33,9 @@
           <SmsContent
             class="item-body"
             :content="row.content"
-            clamp
+            :clamp="isLong(row)"
             :open="openId === row.id"
-            @toggle="openId = openId === row.id ? 0 : row.id"
+            @toggle="toggleRow(row)"
           />
         </article>
       </template>
@@ -55,6 +55,9 @@ import { fetchSmsHistory } from '../api/endpoints'
 import { maskText } from '../utils/format'
 
 const LIMIT = 8
+// A single SMS is ~70 characters, so it always fits unfolded. Only multipart
+// notices (the longest in the database is 363) are worth collapsing.
+const CLAMP_OVER = 140
 // Polling reads the panel's own database; it never talks to the boards, so the
 // vendor's "do not poll the device" rule still holds.
 const POLL_MS = 10000
@@ -71,6 +74,15 @@ let firstLoad = true
 
 // "X31-第三排" -> "第三排": the model prefix repeats on every row and pushes
 // the number out of a 280px rail.
+function isLong(row) {
+  return String(row.content || '').length > CLAMP_OVER
+}
+
+function toggleRow(row) {
+  if (!isLong(row)) return
+  openId.value = openId.value === row.id ? 0 : row.id
+}
+
 function shortName(name) {
   return String(name || '').replace(/^X31[-\s]*/i, '')
 }
@@ -234,12 +246,11 @@ onUnmounted(() => {
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--text-primary);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
-.item-body.open { display: block; -webkit-line-clamp: unset; }
+/* Only multipart notices are collapsed, and they get four lines instead of the
+   three used in the records table. */
+.item-body.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.item-body.clamp.open { display: block; -webkit-line-clamp: unset; overflow: visible; }
 .feed-empty {
   text-align: center;
   color: var(--text-muted);
