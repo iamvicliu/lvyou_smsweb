@@ -112,6 +112,20 @@
           <p class="cred-hint">
             收到短信、短信发出/失败/送达时推送到 iPhone。地址含设备 Key，保存后只显示域名，不会再回显完整链接。
           </p>
+          <div v-if="pushStats" class="push-health">
+            <span :class="['push-dot', pushStats.fail ? 'warn' : 'ok']"></span>
+            <span>
+              最近 24 小时：成功 <b>{{ pushStats.ok }}</b> · 失败 <b :class="{ bad: pushStats.fail }">{{ pushStats.fail }}</b>
+              <template v-if="pushStats.pending"> · 待重试 <b>{{ pushStats.pending }}</b></template>
+            </span>
+            <button v-if="pushStats.pending" class="mini-btn" :disabled="retrying" @click="retryPush">
+              {{ retrying ? '重试中…' : '立即重试' }}
+            </button>
+            <button class="mini-btn ghost" @click="loadPushStats">刷新</button>
+            <span v-if="pushStats.last_error" class="push-error" :title="pushStats.last_error">
+              最近一次失败：{{ pushStats.last_error }}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -268,9 +282,11 @@ import {
   fetchAnswerConfig,
   fetchRecordingConfig,
   fetchNotifySettings,
+  fetchNotifyHealth,
   fetchSimGuard,
   getDeviceCredentialSetting,
   rotateRecordingToken,
+  retryNotify,
   saveDeviceCredentialSetting,
   saveAnswerConfig,
   saveSimGuard,
@@ -300,6 +316,28 @@ const barkHost = ref('')
 const savingBark = ref(false)
 const barkStatus = ref('')
 const barkError = ref(false)
+const pushStats = ref(null)
+const retrying = ref(false)
+
+async function loadPushStats() {
+  try {
+    pushStats.value = await fetchNotifyHealth(24)
+  } catch {
+    pushStats.value = null
+  }
+}
+
+async function retryPush() {
+  retrying.value = true
+  try {
+    pushStats.value = await retryNotify()
+  } catch {
+    // The health line already shows the last known state; a failed manual
+    // retry is not worth an interrupting dialog.
+  } finally {
+    retrying.value = false
+  }
+}
 
 const recTokenConfigured = ref(false)
 const recTokenHint = ref('')
@@ -636,6 +674,7 @@ onMounted(async () => {
   await Promise.all([
     loadCredential(),
     loadNotify(),
+    loadPushStats(),
     loadRecordingConfig(),
     loadGuard(),
     devicesStore.refresh(),
@@ -753,6 +792,24 @@ onMounted(async () => {
 .cred-state { font-size: 13px; color: var(--text-muted); }
 .cred-state.err { color: var(--danger, #e5484d); }
 .cred-hint { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+.push-health {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-top: 10px; padding: 8px 10px;
+  background: var(--bg-hover, rgba(148, 163, 184, 0.1));
+  border-radius: 8px; font-size: 12px; color: var(--text-muted);
+}
+.push-health b { color: var(--text); font-weight: 600; }
+.push-health b.bad { color: var(--danger, #e5484d); }
+.push-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success, #10b981); }
+.push-dot.warn { background: var(--danger, #e5484d); }
+.mini-btn {
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+  border-radius: 6px; padding: 2px 8px; font-size: 12px; cursor: pointer;
+}
+.mini-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.mini-btn:disabled { opacity: 0.5; cursor: default; }
+.mini-btn.ghost { background: transparent; color: var(--text-muted); }
+.push-error { color: var(--danger, #e5484d); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 640px) {
   .settings-view { padding: 14px; }

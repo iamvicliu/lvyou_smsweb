@@ -315,3 +315,16 @@ export function fetchLiveCalls() {
 export function controlPhone(payload) {
   return api.post('/api/tel/control', payload).then(r => r.data)
 }
+
+// ── fleet overview / push health ────────────────────────────────────────────
+export function fetchOverview() {
+  return api.get('/api/overview').then(r => r.data)
+}
+
+export function fetchNotifyHealth(hours = 24) {
+  return api.get('/api/notify/health', { params: { hours } }).then(r => r.data)
+}
+
+export function retryNotify() {
+  return api.post('/api/notify/retry').then(r => r.data)
+}

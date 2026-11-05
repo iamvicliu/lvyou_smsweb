@@ -1,5 +1,18 @@
+import { masked } from '../stores/privacy'
+
 export function displayName(device) {
   return (device.alias || '').trim() || device.devId || device.ip
+}
+
+// Masking is applied at render time so the underlying data (and the clipboard
+// copy of a verification code) stays intact while screenshots do not leak a
+// number. Any digit run of four or more is treated as sensitive.
+export function maskText(value) {
+  const s = String(value ?? '')
+  if (!masked.value) return s
+  return s.replace(/\d{4,}/g, (run) => (
+    run.length >= 7 ? `${run.slice(0, 3)}****${run.slice(-2)}` : '****'
+  ))
 }
 
 export function prettyTime(ts) {

@@ -2,7 +2,7 @@
 import { storeToRefs } from 'pinia'
 
 import { useDevicesStore } from '../stores'
-import { numberParts, operatorLabel, simTone, simToneHint } from '../utils/format'
+import { maskText, numberParts, operatorLabel, simTone, simToneHint } from '../utils/format'
 
 const devicesStore = useDevicesStore()
 const { filteredNumbers } = storeToRefs(devicesStore)
@@ -24,7 +24,7 @@ const { filteredNumbers } = storeToRefs(devicesStore)
         <tr v-for="n in filteredNumbers" :key="String(n.deviceId) + '-' + String(n.slot)">
           <td class="mono">
             <template v-if="numberParts(n.number).number">
-              {{ numberParts(n.number).number }}
+              {{ maskText(numberParts(n.number).number) }}
               <span v-if="numberParts(n.number).note" class="num-note">{{ numberParts(n.number).note }}</span>
             </template>
             <template v-else>{{ numberParts(n.number).note }}</template>
@@ -49,7 +49,7 @@ const { filteredNumbers } = storeToRefs(devicesStore)
     >
       <div class="record-top">
         <span class="mono number">
-          {{ numberParts(n.number).number || numberParts(n.number).note }}
+          {{ maskText(numberParts(n.number).number || numberParts(n.number).note) }}
         </span>
         <span v-if="numberParts(n.number).number && numberParts(n.number).note" class="num-note">{{ numberParts(n.number).note }}</span>
         <span class="slot-chip">SIM{{ n.slot }}</span>

@@ -19,6 +19,21 @@
       <button :class="['nav-link', { active: route.path === '/calls' }]" @click="router.push('/calls')">通话</button>
     </nav>
     <div class="header-right">
+      <button
+        class="header-btn icon-btn"
+        :class="{ 'privacy-on': masked }"
+        :title="masked ? '已遮挡号码，点一下恢复显示' : '遮挡号码和验证码，方便截图'"
+        @click="toggle"
+      >
+        <svg v-if="masked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
+          <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
+          <path d="M14.12 14.12a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/>
+        </svg>
+        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
       <button class="header-btn icon-btn" @click="emit('toggle-theme')" :title="isDark ? '切换到浅色模式' : '切换到深色模式'">
         <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
           <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
@@ -54,6 +69,7 @@
 
 <script setup>
 import { useRoute, useRouter } from 'vue-router'
+import { usePrivacy } from '../stores/privacy'
 
 defineProps({
   loading: { type: Boolean, default: false },
@@ -64,6 +80,7 @@ defineProps({
 const emit = defineEmits(['scan', 'refresh', 'logout', 'toggle-theme', 'open-settings'])
 const route = useRoute()
 const router = useRouter()
+const { masked, toggle } = usePrivacy()
 </script>
 
 <style scoped>
@@ -94,4 +111,9 @@ const router = useRouter()
   box-shadow: 0 4px 12px var(--primary-glow);
 }
 .nav-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.header-btn.privacy-on {
+  color: var(--warning, #d97706);
+  background: var(--warning-glow, rgba(217, 119, 6, 0.12));
+  border-color: transparent;
+}
 </style>

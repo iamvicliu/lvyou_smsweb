@@ -219,6 +219,42 @@ class SmsJob(Base):
     updated     = Column(BigInteger, default=0)
 
 
+class PushEvent(Base):
+    """One notification delivery attempt, kept for the health readout.
+
+    Bark answers 200 and then rejects inside the JSON body, so "did the phone
+    actually get it" was previously only visible in the container log. A row
+    per attempt makes the failure rate reviewable from the settings page and
+    lets ``PushPending`` know whether a retry finally landed.
+    """
+    __tablename__ = "push_events"
+    id      = Column(Integer, primary_key=True, autoincrement=True)
+    ts      = Column(BigInteger, index=True, nullable=False)
+    channel = Column(String(16), default="bark", index=True)
+    ok      = Column(Integer, default=0, index=True)
+    title   = Column(String(160), default="")
+    error   = Column(String(255), default="")
+
+
+class PushPending(Base):
+    """A notification that failed and still owes a retry.
+
+    ``attempts`` counts post-failure retries, not the two inline tries
+    ``send_bark`` already does; the loop backs off 1/5/15 minutes and drops
+    the row after the third, so a dead Bark key cannot grow the table.
+    """
+    __tablename__ = "push_pending"
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    created  = Column(BigInteger, default=0, index=True)
+    next_ts  = Column(BigInteger, default=0, index=True)
+    title    = Column(String(160), default="")
+    body     = Column(Text, default="")
+    extra    = Column(Text, default="")
+    attempts = Column(Integer, default=0)
+    status   = Column(String(16), default="pending", index=True)
+    error    = Column(String(255), default="")
+
+
 def _create_all_with_retry(attempts: int = 6) -> None:
     """Create tables, tolerating the v4/v6 startup race.
 

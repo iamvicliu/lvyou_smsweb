@@ -16,6 +16,9 @@
       :offline="offlineCount"
       :total="devicesStore.devicesTotal"
       :sim-count="devicesStore.numbersTotal"
+      :sim-bad="overview.sims ? overview.sims.bad : 0"
+      :today-in="overview.today ? overview.today.sms_in : 0"
+      :today-out="overview.today ? overview.today.sms_out : 0"
     />
 
     <MessagePanel
@@ -180,12 +183,22 @@ import { groupLabel } from '../utils/format'
 import {
   batchBoardPassword,
   batchControlSlots,
-  setupDevicePush
+  setupDevicePush,
+  fetchOverview
 } from '../api/endpoints'
 
 // Silent device-list refresh: SIM insert/remove arrives as a webhook, so the
 // dashboard has to re-read the list to show it without pressing 扫描.
 let autoRefreshTimer = null
+const overview = ref({ sims: null, today: null })
+
+async function loadOverview() {
+  try {
+    overview.value = await fetchOverview()
+  } catch {
+    // A failed overview must not blank the device grid; the old numbers stay.
+  }
+}
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -370,6 +383,7 @@ onMounted(async () => {
   try {
     if (await authStore.restore()) {
       await devicesStore.refresh()
+      await loadOverview()
     } else {
       router.push('/login')
     }
@@ -379,7 +393,10 @@ onMounted(async () => {
   // SIM insert/remove only reaches us as a board push (204/205/209), so
   // re-read the list quietly to show the new card without a manual scan.
   autoRefreshTimer = setInterval(() => {
-    if (!document.hidden) devicesStore.refresh({ silent: true })
+    if (!document.hidden) {
+      devicesStore.refresh({ silent: true })
+      loadOverview()
+    }
   }, 30000)
 })
 

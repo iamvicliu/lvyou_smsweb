@@ -22,6 +22,21 @@
       <b>{{ simCount }}</b>
       <span class="stat-label">SIM卡</span>
     </div>
+    <div v-if="simBad" class="stat bad" title="板子报告这些卡当前不可用（拒绝 / 无卡 / 卡异常等）">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2L1 21h22L12 2zm1 15h-2v-2h2v2zm0-4h-2V9h2v4z"/></svg>
+      <b>{{ simBad }}</b>
+      <span class="stat-label">卡异常</span>
+    </div>
+    <div class="stat today" title="今天（北京时间）收到的短信">
+      <span class="stat-arrow in">↓</span>
+      <b>{{ todayIn }}</b>
+      <span class="stat-label">今日收到</span>
+    </div>
+    <div class="stat today" title="今天（北京时间）发出的短信">
+      <span class="stat-arrow out">↑</span>
+      <b>{{ todayOut }}</b>
+      <span class="stat-label">今日发出</span>
+    </div>
   </div>
 </template>
 
@@ -31,6 +46,9 @@ defineProps({
   offline: { type: Number, default: 0 },
   total: { type: Number, default: 0 },
   simCount: { type: Number, default: 0 },
+  simBad: { type: Number, default: 0 },
+  todayIn: { type: Number, default: 0 },
+  todayOut: { type: Number, default: 0 },
   // Kept so DashboardView can pass the historical trend series; the slim bar
   // has no sparkline to draw.
   trendData: { type: Object, default: () => ({}) }
@@ -61,6 +79,13 @@ defineProps({
 .stat.offline b { color: var(--danger); }
 .stat.total { color: var(--primary); }
 .stat.sim { color: var(--warning); }
+.stat.bad { color: var(--danger); }
+.stat.bad svg { width: 13px; height: 13px; }
+.stat.today { color: var(--text-muted); }
+.stat.today b { color: var(--text); }
+.stat-arrow { font-size: 12px; font-weight: 700; line-height: 1; }
+.stat-arrow.in { color: var(--success); }
+.stat-arrow.out { color: var(--primary); }
 @media (max-width: 640px) {
   .stats-bar { gap: 2px 12px; padding: 8px 12px; }
   .stat b { font-size: 15px; }

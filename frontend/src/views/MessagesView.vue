@@ -53,17 +53,20 @@
             <tr v-for="row in items" :key="row.id">
               <td class="muted nowrap">{{ row.sms_time }}</td>
               <td>{{ row.device_name }}</td>
-              <td>{{ simLabel(row.sim_slot, row.sim_number) }}</td>
+              <td>{{ maskText(simLabel(row.sim_slot, row.sim_number)) }}</td>
               <td>
                 <span :class="['tag', row.direction === 'received' ? 'in' : 'out']">
                   {{ row.direction === 'received' ? '收到' : '发出' }}
                 </span>
               </td>
-              <td class="mono nowrap">{{ row.phone }}</td>
+              <td class="mono nowrap">{{ maskText(row.phone) }}</td>
               <td class="content">
-                <div :class="['clamp', { open: expanded.has(row.id) }]" @click="toggleExpand(row.id)">
-                  {{ row.content }}
-                </div>
+                <SmsContent
+                  :content="row.content"
+                  clamp
+                  :open="expanded.has(row.id)"
+                  @toggle="toggleExpand(row.id)"
+                />
               </td>
             </tr>
           </tbody>
@@ -82,13 +85,17 @@
           <div class="record-sub">
             <span>{{ row.device_name }}</span>
             <span class="sep">·</span>
-            <span>{{ simLabel(row.sim_slot) }}</span>
+            <span>{{ maskText(simLabel(row.sim_slot, row.sim_number)) }}</span>
             <span class="sep">·</span>
-            <span class="mono">{{ row.phone }}</span>
+            <span class="mono">{{ maskText(row.phone) }}</span>
           </div>
-          <div :class="['record-body', 'clamp', { open: expanded.has(row.id) }]" @click="toggleExpand(row.id)">
-            {{ row.content }}
-          </div>
+          <SmsContent
+            class="record-body"
+            :content="row.content"
+            clamp
+            :open="expanded.has(row.id)"
+            @toggle="toggleExpand(row.id)"
+          />
         </div>
       </div>
 
@@ -110,9 +117,10 @@ import { useRouter } from 'vue-router'
 import { useAuthStore, useDevicesStore } from '../stores'
 import AppHeader from '../components/AppHeader.vue'
 import Pagination from '../components/Pagination.vue'
+import SmsContent from '../components/SmsContent.vue'
 import { fetchSmsHistory, refreshMessages } from '../api/endpoints'
 import { useTheme } from '../composables/useTheme'
-import { simLabel } from '../utils/format'
+import { maskText, simLabel } from '../utils/format'
 
 const router = useRouter()
 const authStore = useAuthStore()

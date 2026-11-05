@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useDevicesStore, useScanStore } from '../stores'
 import { useDeviceActions } from '../composables/useDeviceActions'
 import { useDetail } from '../composables/useDetail'
-import { displayName, groupLabel, operatorLabel, prettyTime, simTone, simToneHint } from '../utils/format'
+import { displayName, groupLabel, maskText, operatorLabel, prettyTime, simTone, simToneHint } from '../utils/format'
 
 const props = defineProps({
   devices: { type: Array, default: () => [] },
@@ -132,7 +132,7 @@ function dropClass(id) {
               :title="simToneHint(d.sims.sim1.operator)"
             >{{ operatorLabel(d.sims.sim1.operator) || '-' }}</span>
             <span class="sim-signal" v-if="d.sims.sim1.signal > 0">{{ d.sims.sim1.signal }}%</span>
-            <span class="sim-num">{{ d.sims.sim1.number || '-' }}</span>
+            <span class="sim-num">{{ maskText(d.sims.sim1.number || '-') }}</span>
           </div>
           <div v-if="d.sims && d.sims.sim2 && (d.sims.sim2.number || d.sims.sim2.operator)" class="sim-item">
             <span class="sim-label">SIM2</span>
@@ -141,7 +141,7 @@ function dropClass(id) {
               :title="simToneHint(d.sims.sim2.operator)"
             >{{ operatorLabel(d.sims.sim2.operator) || '-' }}</span>
             <span class="sim-signal" v-if="d.sims.sim2.signal > 0">{{ d.sims.sim2.signal }}%</span>
-            <span class="sim-num">{{ d.sims.sim2.number || '-' }}</span>
+            <span class="sim-num">{{ maskText(d.sims.sim2.number || '-') }}</span>
           </div>
         </div>
 

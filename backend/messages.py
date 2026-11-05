@@ -858,12 +858,16 @@ def send_dingtalk(text: str, db: Optional[Session] = None) -> bool:
 
 
 def send_bark(title: str, body: str, db: Optional[Session] = None,
-              extra: Optional[dict] = None) -> bool:
+              extra: Optional[dict] = None, _from_queue: bool = False) -> bool:
     """Post one notification to the configured Bark URL.
 
     Bark may answer HTTP 200 while still rejecting the request in its JSON
     body, so both layers have to agree before this counts as delivered to the
     push service.
+
+    Every attempt is recorded for the settings page, and a final failure is
+    queued for backoff retries (``_from_queue`` marks a retry so it does not
+    enqueue itself again).
     """
     own = db is None
     db = db or SessionLocal()
@@ -887,11 +891,17 @@ def send_bark(title: str, body: str, db: Optional[Session] = None,
             payload = resp.json()
             ok = isinstance(payload, dict) and int(payload.get("code") or 0) == 200
             if ok:
+                from backend import pushhealth
+                pushhealth.record("bark", True, title)
                 return True
             last_error = f"code={payload.get('code') if isinstance(payload, dict) else '?'}"
         except Exception as exc:
             last_error = f"{type(exc).__name__}: {exc}"
     logger.warning("bark notify failed after retry: %s", last_error)
+    from backend import pushhealth
+    pushhealth.record("bark", False, title, last_error or "")
+    if not _from_queue:
+        pushhealth.enqueue(title, body, extra)
     return False
 
 

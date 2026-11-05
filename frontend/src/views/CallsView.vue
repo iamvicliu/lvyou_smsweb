@@ -58,9 +58,9 @@
             <tr>
               <td class="muted nowrap">{{ row.call_time }}</td>
               <td>{{ row.device_name }}</td>
-              <td>{{ simLabel(row.sim_slot, row.sim_number) }}</td>
+              <td>{{ maskText(simLabel(row.sim_slot, row.sim_number)) }}</td>
               <td>{{ row.direction === 'incoming' ? '呼入' : '呼出' }}</td>
-              <td class="mono nowrap">{{ row.phone }}</td>
+              <td class="mono nowrap">{{ maskText(row.phone) }}</td>
               <td><span :class="['tag', tagClass(row.action)]">{{ actionLabel(row.action) }}</span></td>
               <td class="nowrap">{{ formatDuration(rowDuration(row)) }}</td>
               <td>
@@ -94,9 +94,9 @@
           <div class="record-sub">
             <span>{{ row.device_name }}</span>
             <span class="sep">·</span>
-            <span>{{ simLabel(row.sim_slot) }}</span>
+            <span>{{ maskText(simLabel(row.sim_slot, row.sim_number)) }}</span>
             <span class="sep">·</span>
-            <span class="mono">{{ row.phone }}</span>
+            <span class="mono">{{ maskText(row.phone) }}</span>
             <span class="sep">·</span>
             <span>{{ row.direction === 'incoming' ? '呼入' : '呼出' }}</span>
             <template v-if="Number(rowDuration(row) || 0) > 0">
@@ -147,7 +147,7 @@ import {
   recordingDownloadUrl
 } from '../api/endpoints'
 import { useTheme } from '../composables/useTheme'
-import { simLabel } from '../utils/format'
+import { maskText, simLabel } from '../utils/format'
 
 const router = useRouter()
 const authStore = useAuthStore()

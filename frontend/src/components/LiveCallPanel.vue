@@ -10,7 +10,7 @@
       <div class="live-main">
         <div class="live-info">
           <span class="live-device">{{ call.device_name }} · 卡槽 {{ call.slot }}</span>
-          <span class="live-phone mono">{{ call.phone || '未知号码' }}</span>
+          <span class="live-phone mono">{{ maskText(call.phone) || '未知号码' }}</span>
         </div>
         <div class="live-state">
           <span :class="['tag', call.state === 'answered' ? 'ok' : 'warn']">{{ stateLabel(call) }}</span>
@@ -84,6 +84,7 @@
 <script setup>
 import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { controlPhone, fetchAnswerMode, fetchLiveCalls, setAnswerMode } from '../api/endpoints'
+import { maskText } from '../utils/format'
 
 const emit = defineEmits(['refresh'])
 

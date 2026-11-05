@@ -417,6 +417,7 @@ async def lifespan(app: FastAPI):
     _auto_scan_task: Optional["asyncio.Task"] = None
     _messages_task: Optional["asyncio.Task"] = None
     _simguard_task: Optional["asyncio.Task"] = None
+    _push_task: Optional["asyncio.Task"] = None
     if _BACKGROUND_WORKER:
         # FIX(P1#12): periodic cleanup task for finished scans, expired tokens,
         # rate-limit events and stale device rows.
@@ -428,6 +429,9 @@ async def lifespan(app: FastAPI):
         # 209 SIM 守护：观察期到期后单次 stat 确认，必要时重启卡槽。
         from backend.simguard import simguard_loop as _simguard_loop
         _simguard_task = asyncio.create_task(_simguard_loop())
+        # 推送失败重试队列：Bark 挂了也能在一小时内补发。
+        from backend.pushhealth import push_retry_loop as _push_retry_loop
+        _push_task = asyncio.create_task(_push_retry_loop())
     else:
         logger.info("background tasks disabled on this listener (BMWORKER=0)")
     try:
@@ -437,6 +441,12 @@ async def lifespan(app: FastAPI):
             _simguard_task.cancel()
             try:
                 await _simguard_task
+            except (asyncio.CancelledError, Exception):
+                pass
+        if _push_task:
+            _push_task.cancel()
+            try:
+                await _push_task
             except (asyncio.CancelledError, Exception):
                 pass
         if _messages_task:
@@ -966,6 +976,9 @@ app.include_router(settings_router)
 app.include_router(messages_router)
 app.include_router(recordings_router)
 app.include_router(control_router)
+
+from backend.routes import overview as _overview_routes  # noqa: E402
+app.include_router(_overview_routes.router)
 
 # ── Device query helpers (used by routes) ────────────────────────────────────
 # NOTE: getallnumbers() is defined once, earlier in this module. It filters
