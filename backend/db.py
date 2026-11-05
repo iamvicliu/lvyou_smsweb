@@ -141,7 +141,10 @@ class SmsRecord(Base):
     content    = Column(Text, default="")
     direction  = Column(String(16), default="received", index=True)
     raw_json   = Column(Text, default="")
+    # Raw board timestamp, kept as the idempotency key. ``event_ts`` is the
+    # corrected wall-clock time used for ordering/display.
     sms_ts     = Column(BigInteger, default=0, index=True)
+    event_ts   = Column(BigInteger, default=0, index=True)
     sms_time   = Column(String(32), default="")
     created    = Column(String(32), default="")
     # sha1(device|ts|slot|direction|phone|content): INSERT OR IGNORE makes
@@ -161,8 +164,11 @@ class CallRecord(Base):
     action     = Column(String(16), default="")
     duration   = Column(Integer, default=0)
     raw_json   = Column(Text, default="")
+    # ``start_ts`` stays raw so the recording upload can still join on the
+    # board's original telStartTs. ``event_ts`` is the clock-corrected time.
     call_time  = Column(String(32), default="")
     start_ts   = Column(BigInteger, default=0, index=True)
+    event_ts   = Column(BigInteger, default=0, index=True)
     created    = Column(String(32), default="")
     dedup      = Column(String(40), unique=True, index=True)
 
@@ -285,6 +291,8 @@ def run_migrations() -> None:
         ("devices", "firmware_version", "VARCHAR(64) DEFAULT ''"),
         ("devices", "sort_order",       "INTEGER DEFAULT 0"),
         ("devices", "note",             "TEXT DEFAULT ''"),
+        ("sms_records", "event_ts",     "BIGINT DEFAULT 0"),
+        ("call_records", "event_ts",    "BIGINT DEFAULT 0"),
     ]
     with engine.connect() as conn:
         for table, col, coltype in alters:
@@ -293,6 +301,14 @@ def run_migrations() -> None:
             if col not in cols:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}"))
         conn.execute(text("UPDATE devices SET mac = NULL WHERE mac = ''"))
+        conn.execute(text(
+            "UPDATE sms_records SET event_ts = sms_ts "
+            "WHERE event_ts IS NULL OR event_ts = 0"
+        ))
+        conn.execute(text(
+            "UPDATE call_records SET event_ts = start_ts "
+            "WHERE event_ts IS NULL OR event_ts = 0"
+        ))
         conn.commit()
 
 

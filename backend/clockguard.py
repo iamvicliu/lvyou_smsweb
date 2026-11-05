@@ -31,9 +31,9 @@ CST = timezone(timedelta(hours=8))
 #: Ignore drift under three minutes: NTP jitter and clock granularity are not
 #: worth a control command, and the ordering of records is unaffected.
 SKEW_LIMIT_SECONDS = 180
-#: A board whose RTC loses time on every reboot still gets corrected, but at
-#: most once per six hours.
-RESYNC_COOLDOWN_SECONDS = 6 * 3600
+#: The X31 can reset its RTC more than once in an evening. Ten minutes keeps a
+#: flapping board from being hammered while still recovering the next reboot.
+RESYNC_COOLDOWN_SECONDS = 10 * 60
 
 
 def _skew(msg_ts: Any) -> Optional[int]:
@@ -62,13 +62,18 @@ def _send_now(ip: str, token: str, when: int) -> None:
         logger.debug("clock resync failed for %s", ip, exc_info=True)
 
 
-def maybe_fix(db, device, msg_ts: Any) -> None:
-    """Resync ``device`` when a live push shows its clock has drifted."""
+def maybe_fix(db, device, msg_ts: Any) -> bool:
+    """Resync ``device`` when a live push shows its clock has drifted.
+
+    Returns True only when a correction was actually dispatched, so the
+    caller can schedule a one-shot history catch-up for a push that may have
+    been dropped while the board's clock was wrong.
+    """
     if device is None:
-        return
+        return False
     skew = _skew(msg_ts)
     if skew is None or abs(skew) <= SKEW_LIMIT_SECONDS:
-        return
+        return False
     now = int(time.time())
     dev_key = device.devId or str(device.id)
     setting_key = f"clockfix:{dev_key}"
@@ -77,21 +82,22 @@ def maybe_fix(db, device, msg_ts: Any) -> None:
     except (TypeError, ValueError):
         last = 0
     if now - last < RESYNC_COOLDOWN_SECONDS:
-        return
+        return False
     try:
         _put(db, setting_key, str(now))
     except Exception:
         logger.debug("clock guard marker write failed", exc_info=True)
-        return
+        return False
     try:
         token = ensure_device_token(db, device)
     except Exception:
         logger.debug("clock guard token failed", exc_info=True)
-        return
+        return False
     logger.warning("board clock off by %ss, resyncing dev=%s", skew, dev_key)
     threading.Thread(
         target=_send_now, args=(device.ip, token, now), daemon=True
     ).start()
+    return True
 def _get(db, key: str, default: str = "") -> str:
     row = db.query(Setting).filter(Setting.key == key).first()
     return row.value if row is not None else default

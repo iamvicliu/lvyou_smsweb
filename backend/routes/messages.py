@@ -160,7 +160,7 @@ def api_sms_history(
         query = query.filter(SmsRecord.phone.like(like) | SmsRecord.content.like(like))
     total = query.count()
     rows = (
-        query.order_by(SmsRecord.sms_ts.desc(), SmsRecord.id.desc())
+        query.order_by(SmsRecord.event_ts.desc(), SmsRecord.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
@@ -182,7 +182,7 @@ def api_sms_history(
                 "phone": r.phone,
                 "content": r.content,
                 "direction": r.direction,
-                "sms_ts": r.sms_ts,
+                "sms_ts": r.event_ts or r.sms_ts,
                 "sms_time": r.sms_time,
             }
             for r in rows
@@ -211,7 +211,7 @@ def api_sms_threads(
     grouped = (
         base.with_entities(
             SmsRecord.phone.label("phone"),
-            func.max(SmsRecord.sms_ts).label("last_ts"),
+            func.max(SmsRecord.event_ts).label("last_ts"),
             func.count(SmsRecord.id).label("total"),
         )
         .group_by(SmsRecord.phone)
@@ -231,7 +231,7 @@ def api_sms_threads(
         phone = row.phone or ""
         last = (
             base.filter(SmsRecord.phone == phone)
-            .order_by(SmsRecord.sms_ts.desc(), SmsRecord.id.desc())
+            .order_by(SmsRecord.event_ts.desc(), SmsRecord.id.desc())
             .first()
         )
         received = (
@@ -268,7 +268,7 @@ def api_sms_thread(
     query = db.query(SmsRecord).filter(SmsRecord.phone == phone)
     if device_id:
         query = query.filter(SmsRecord.device_id == device_id)
-    rows = query.order_by(SmsRecord.sms_ts.desc(), SmsRecord.id.desc()).limit(limit).all()
+    rows = query.order_by(SmsRecord.event_ts.desc(), SmsRecord.id.desc()).limit(limit).all()
     rows.reverse()
     sim_map = _sim_number_map(db, rows)
     return {
@@ -282,7 +282,7 @@ def api_sms_thread(
                 "sim_number": _row_sim_number(sim_map, r.device_id, r.sim_slot),
                 "content": r.content,
                 "direction": r.direction,
-                "sms_ts": r.sms_ts,
+                "sms_ts": r.event_ts or r.sms_ts,
                 "sms_time": r.sms_time,
             }
             for r in rows
@@ -328,7 +328,7 @@ def api_call_history(
         query = query.filter(CallRecord.phone.like(f"%{q}%"))
     total = query.count()
     rows = (
-        query.order_by(CallRecord.start_ts.desc(), CallRecord.id.desc())
+        query.order_by(CallRecord.event_ts.desc(), CallRecord.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
@@ -352,7 +352,7 @@ def api_call_history(
                 "direction": r.direction,
                 "action": r.action,
                 "duration": r.duration,
-                "start_ts": r.start_ts,
+                "start_ts": r.event_ts or r.start_ts,
                 "call_time": r.call_time,
                 "recording": rec_map.get(r.id),
             }

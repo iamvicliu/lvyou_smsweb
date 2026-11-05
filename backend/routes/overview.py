@@ -59,12 +59,12 @@ def api_overview(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
     since = _midnight_ts()
     sms_in = db.query(SmsRecord).filter(
-        SmsRecord.sms_ts >= since, SmsRecord.direction == "received").count()
+        SmsRecord.event_ts >= since, SmsRecord.direction == "received").count()
     sms_out = db.query(SmsRecord).filter(
-        SmsRecord.sms_ts >= since, SmsRecord.direction == "sent").count()
-    calls_today = db.query(CallRecord).filter(CallRecord.start_ts >= since).count()
+        SmsRecord.event_ts >= since, SmsRecord.direction == "sent").count()
+    calls_today = db.query(CallRecord).filter(CallRecord.event_ts >= since).count()
     missed = db.query(CallRecord).filter(
-        CallRecord.start_ts >= since, CallRecord.direction == "incoming",
+        CallRecord.event_ts >= since, CallRecord.direction == "incoming",
         CallRecord.duration == 0).count()
 
     push = pushhealth.stats(24)

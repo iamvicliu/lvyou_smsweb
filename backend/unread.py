@@ -52,7 +52,7 @@ def by_device(db: Session) -> Dict[str, Any]:
     per_device: Dict[int, Dict[str, int]] = {}
     sms_rows = (
         db.query(SmsRecord.device_id, func.count(SmsRecord.id))
-        .filter(SmsRecord.direction == "received", SmsRecord.sms_ts > sms_since)
+        .filter(SmsRecord.direction == "received", SmsRecord.event_ts > sms_since)
         .group_by(SmsRecord.device_id)
         .all()
     )
@@ -65,7 +65,7 @@ def by_device(db: Session) -> Dict[str, Any]:
         .filter(
             CallRecord.direction == "incoming",
             CallRecord.action == "missed",
-            CallRecord.start_ts > calls_since,
+            CallRecord.event_ts > calls_since,
         )
         .group_by(CallRecord.device_id)
         .all()

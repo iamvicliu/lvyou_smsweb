@@ -82,6 +82,11 @@ PING_GRACE_SECONDS = 15
 # three-strikes rule before flipping the dashboard to offline.
 OFFLINE_AFTER_FAILS = 3
 _poll_failures: Dict[str, int] = {}
+_catchup_lock = threading.Lock()
+_catchup_timers: Dict[str, threading.Timer] = {}
+_last_catchup: Dict[str, int] = {}
+CALL_CATCHUP_DELAY = 30
+CATCHUP_COOLDOWN = 5 * 60
 
 
 def _now_str() -> str:
@@ -93,6 +98,36 @@ def _ts_to_str(ts: int) -> str:
         return datetime.fromtimestamp(int(ts), tz=CST).strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         return _now_str()
+
+
+def _correct_event_ts(data: Dict[str, Any], raw_ts: Any, now: Optional[int] = None) -> int:
+    """Translate one board timestamp onto the panel's wall clock.
+
+    A push carries both the event timestamp and ``msgTs``. When the board's
+    RTC has drifted, both are wrong by the same amount, while the push itself
+    arrives at the panel now. The difference therefore gives the offset to
+    apply. Only a message-at-the-same-instant (or a call that started shortly
+    before it) is adjusted; old history pulled by ``querysms`` never has a
+    ``msgTs`` and keeps its original timestamp.
+    """
+    try:
+        ts = int(raw_ts or 0)
+        msg_ts = int(data.get("msgTs") or 0)
+    except (TypeError, ValueError):
+        return 0
+    if not ts or not msg_ts:
+        return ts
+    if msg_ts > 10_000_000_000:
+        msg_ts //= 1000
+    now_ts = int(now or time.time())
+    skew = now_ts - msg_ts
+    if abs(skew) <= 180:
+        return ts
+    # A push event sits at msgTs; a call start may precede it by the call
+    # duration. Do not let an unrelated old timestamp inherit this offset.
+    if -7200 <= ts - msg_ts <= 60 and abs(skew) < 24 * 3600:
+        return ts + skew
+    return ts
 
 
 def _dedup(*parts: Any) -> str:
@@ -152,9 +187,11 @@ def store_sms(
     direction: str,
     sms_ts: int,
     raw: Any,
+    event_ts: int = 0,
 ) -> Tuple[bool, int]:
     """Insert one SMS; returns (inserted, record_id)."""
     dedup = _dedup(dev_id or (device and device.devId) or "-", sms_ts, sim_slot, direction, phone, content)
+    shown_ts = int(event_ts or sms_ts or 0)
     stmt = (
         sqlite_insert(SmsRecord)
         .values(
@@ -166,7 +203,8 @@ def store_sms(
             direction=direction,
             raw_json=json.dumps(raw, ensure_ascii=False) if raw is not None else "",
             sms_ts=int(sms_ts or 0),
-            sms_time=_ts_to_str(sms_ts) if sms_ts else _now_str(),
+            event_ts=shown_ts,
+            sms_time=_ts_to_str(shown_ts) if shown_ts else _now_str(),
             created=_now_str(),
             dedup=dedup,
         )
@@ -177,6 +215,15 @@ def store_sms(
     if result.rowcount:
         row = db.query(SmsRecord).filter(SmsRecord.dedup == dedup).first()
         return True, (row.id if row else 0)
+    if event_ts and int(event_ts) != int(sms_ts or 0):
+        # A missed 501 may have been backfilled by querysms first. When the
+        # delayed live push finally lands, use its clock correction instead of
+        # leaving the row buried at the board's old timestamp.
+        row = db.query(SmsRecord).filter(SmsRecord.dedup == dedup).first()
+        if row is not None and int(row.event_ts or 0) != int(event_ts):
+            row.event_ts = int(event_ts)
+            row.sms_time = _ts_to_str(event_ts)
+            db.commit()
     return False, 0
 
 
@@ -192,17 +239,22 @@ def store_call(
     duration: int,
     start_ts: int,
     raw: Any,
+    event_ts: int = 0,
     update_existing: bool = False,
 ) -> Tuple[bool, int]:
     """Insert a call record. Webhook call-state updates set ``update_existing``."""
     ident = dev_id or (device.devId if device else "") or "-"
     dedup = _dedup(ident, "call", start_ts)
+    shown_ts = int(event_ts or start_ts or 0)
     if update_existing:
         row = db.query(CallRecord).filter(CallRecord.dedup == dedup).first()
         if row is not None:
             row.action = action or row.action
             row.duration = duration or row.duration
             row.raw_json = json.dumps(raw, ensure_ascii=False) if raw is not None else row.raw_json
+            if shown_ts:
+                row.event_ts = shown_ts
+                row.call_time = _ts_to_str(shown_ts)
             db.commit()
             return False, row.id
     stmt = (
@@ -216,8 +268,9 @@ def store_call(
             action=action,
             duration=max(0, int(duration or 0)),
             raw_json=json.dumps(raw, ensure_ascii=False) if raw is not None else "",
-            call_time=_ts_to_str(start_ts) if start_ts else _now_str(),
+            call_time=_ts_to_str(shown_ts) if shown_ts else _now_str(),
             start_ts=int(start_ts or 0),
+            event_ts=shown_ts,
             created=_now_str(),
             dedup=dedup,
         )
@@ -382,6 +435,56 @@ def poll_all(force: bool = False) -> Dict[str, Any]:
     return totals
 
 
+def _schedule_history_catchup(
+    device: Device,
+    *,
+    delay: int = CALL_CATCHUP_DELAY,
+) -> None:
+    """Pull missed SMS/calls after a live event, without timed polling.
+
+    Board pushes are occasionally dropped (a 501 can disappear while the
+    matching 601/602 still arrives). A call sequence therefore becomes the
+    trigger for one idempotent ``querysms``/``querytel`` catch-up after the
+    line has been quiet for ``delay`` seconds. Multiple call events debounce
+    into one query, and a per-device cooldown prevents a chatty line from
+    turning this back into polling.
+    """
+    key = device.devId or device.ip or str(device.id)
+    device_id = device.id
+
+    def worker() -> None:
+        now = int(time.time())
+        with _catchup_lock:
+            if now - _last_catchup.get(key, 0) < CATCHUP_COOLDOWN:
+                return
+            _last_catchup[key] = now
+        db = SessionLocal()
+        try:
+            row = db.query(Device).filter(Device.id == device_id).first()
+            if row is None:
+                return
+            got = poll_device(db, row)
+            if got.get("sms") or got.get("calls"):
+                logger.info(
+                    "catch-up after push dev=%s +%s sms +%s calls",
+                    key, got.get("sms", 0), got.get("calls", 0),
+                )
+        except Exception:
+            db.rollback()
+            logger.debug("push catch-up failed dev=%s", key, exc_info=True)
+        finally:
+            db.close()
+
+    with _catchup_lock:
+        old = _catchup_timers.pop(key, None)
+        if old is not None:
+            old.cancel()
+        timer = threading.Timer(max(1, int(delay)), worker)
+        timer.daemon = True
+        _catchup_timers[key] = timer
+        timer.start()
+
+
 # ── Webhook ingestion ────────────────────────────────────────────────────────
 
 CALL_EVENT_TYPES = {601, 602, 603, 620, 621, 622, 623}
@@ -485,7 +588,7 @@ def _ingest_board_local_push(db: Session, data: Dict[str, Any], source_ip: str) 
     db.commit()
     # The board already tried to push this itself; forward it through the
     # panel only when the call just ended, so stale payloads do not buzz.
-    if time.time() - int(rec.start_ts or 0) < 180:
+    if time.time() - int(rec.event_ts or rec.start_ts or 0) < 180:
         _notify_call(label, slot, phone, title="未接来电", detail="没有接听",
                      db=db, sim_number=sim_number)
     return {"status": "ok", "stored": False, "id": rec.id, "type": "local-missed"}
@@ -516,12 +619,18 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
         # Records are ordered by the board's own timestamps, so a board whose
         # RTC drifted after a reboot hides its own calls (they sort as if they
         # happened hours ago). Detect that from the push and correct it.
+        clock_fixed = False
         try:
             from backend import clockguard
 
-            clockguard.maybe_fix(db, device, data.get("msgTs"))
+            clock_fixed = bool(clockguard.maybe_fix(db, device, data.get("msgTs")))
         except Exception:
             logger.debug("clock guard hook failed", exc_info=True)
+        if clock_fixed:
+            # The board's clock was wrong for this push, so message(s) around
+            # it may also have been dropped. One event-driven catch-up is
+            # enough; the scheduled poller is not involved.
+            _schedule_history_catchup(device, delay=5)
 
     if msg_type in SIM_STATE_EVENTS:
         slot = f"sim{data.get('slot', 1)}"
@@ -595,13 +704,15 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
             sms_ts //= 1000
         if not sms_ts:
             sms_ts = int(data.get("devSmsTs") or data.get("msgTs") or 0)
+        event_ts = _correct_event_ts(data, sms_ts)
         direction = "received" if msg_type == 501 else "sent"
         slot = f"sim{data.get('slot', 1)}"
         phone = str(data.get("phNum") or "")
         content = str(data.get("smsBd") or "")
         inserted, rec_id = store_sms(
             db, device=device, dev_id=dev_id, sim_slot=slot, phone=phone,
-            content=content, direction=direction, sms_ts=sms_ts, raw=data,
+            content=content, direction=direction, sms_ts=sms_ts,
+            raw=data, event_ts=event_ts,
         )
         if inserted:
             sim_number = _pick_sim_number(device, slot, data.get("msIsdn"))
@@ -662,6 +773,7 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
         slot = f"sim{data.get('slot', 1)}"
         phone = str(data.get("phNum") or "")
         start = int(data.get("telStartTs") or 0) or int(data.get("msgTs") or 0)
+        event_ts = _correct_event_ts(data, start)
         end = int(data.get("telEndTs") or 0)
         connected = int(data.get("telConnectedTs") or 0)
         direction = "incoming" if str(data.get("telDir", "")) == "1" else "outgoing"
@@ -688,8 +800,11 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
         inserted, rec_id = store_call(
             db, device=device, dev_id=dev_id, sim_slot=slot, phone=phone,
             direction=direction, action=action, duration=duration,
-            start_ts=start, raw=data, update_existing=msg_type not in (601, 620),
+            start_ts=start, raw=data, event_ts=event_ts,
+            update_existing=msg_type not in (601, 620),
         )
+        if device is not None:
+            _schedule_history_catchup(device)
         sim_number = _pick_sim_number(device, slot, data.get("msIsdn"))
         _learn_sim_number(db, device, slot, sim_number)
         if msg_type in (601, 620):

@@ -674,8 +674,8 @@ def api_tel_live(db: Session = Depends(get_db)):
     cutoff = int(time.time()) - 360
     rows = (
         db.query(CallRecord)
-        .filter(CallRecord.start_ts >= cutoff)
-        .order_by(CallRecord.start_ts.desc(), CallRecord.id.desc())
+        .filter(CallRecord.event_ts >= cutoff)
+        .order_by(CallRecord.event_ts.desc(), CallRecord.id.desc())
         .limit(100)
         .all()
     )
@@ -698,7 +698,9 @@ def api_tel_live(db: Session = Depends(get_db)):
         state = active_types.get(event)
         if not state:
             continue
-        if now - _active_since(row.raw_json or "", row.start_ts) > max_age[state]:
+        raw_active = _active_since(row.raw_json or "", row.start_ts)
+        active = raw_active + (int(row.event_ts or row.start_ts or 0) - int(row.start_ts or 0))
+        if now - active > max_age[state]:
             continue
         device = db.query(Device).filter(Device.id == row.device_id).first()
         items.append({
@@ -710,8 +712,8 @@ def api_tel_live(db: Session = Depends(get_db)):
             "direction": row.direction,
             "state": state,
             "event_type": event,
-            "start_ts": row.start_ts,
+            "start_ts": row.event_ts or row.start_ts,
             "call_time": row.call_time,
-            "elapsed": max(0, now - int(row.start_ts or 0)),
+            "elapsed": max(0, now - int(row.event_ts or row.start_ts or 0)),
         })
     return {"items": items, "server_ts": int(time.time())}
