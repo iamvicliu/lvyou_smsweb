@@ -28,7 +28,13 @@ import urllib.request
 
 sys.path.insert(0, "/app")
 
-from backend.db import CallRecord, Device, SessionLocal, SmsRecord  # noqa: E402
+from backend.db import (  # noqa: E402
+    CallRecord,
+    Device,
+    SessionLocal,
+    SmsRecord,
+    ordered_devices,
+)
 from backend.device_client import ensure_device_token  # noqa: E402
 from backend.messages import (  # noqa: E402
     _ping_window_seconds,
@@ -248,7 +254,7 @@ def main() -> int:
         else:
             report.warn("Bark", f"{bark_detail}（只影响通知，不影响入库）")
 
-        devices = db.query(Device).order_by(Device.id).all()
+        devices = ordered_devices(db)
         report.lines.append("")
         report.lines.append(f"[板子] 共 {len(devices)} 块")
         for device in devices:
