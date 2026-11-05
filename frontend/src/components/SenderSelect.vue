@@ -17,7 +17,7 @@
         @click="emit('update:value', slot.value)"
       >
         <span class="chip-name">{{ slot.label }}</span>
-        <span class="chip-num">{{ slot.number || '无号码' }}</span>
+        <span class="chip-num">{{ slot.number ? maskText(slot.number) : '无号码' }}</span>
       </button>
     </div>
   </div>
@@ -26,6 +26,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import CustomSelect from './CustomSelect.vue'
+import { maskText } from '../utils/format'
 
 const props = defineProps({
   numbers: { type: Array, default: () => [] },
