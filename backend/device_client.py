@@ -25,7 +25,7 @@ from backend.config import (
     SCAN_RETRY_SLEEP_MS,
     TIMEOUT,
 )
-from backend.db import Device, SessionLocal
+from backend.db import Device, SessionLocal, Setting
 from backend.settings_store import device_credential
 from backend.http_client import get_sync_client
 from backend.security import is_device_ip_allowed
@@ -177,6 +177,22 @@ def ota_check(ip: str, user: str, pw: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _remember_latest_firmware(db, version: str) -> None:
+    """Keep the newest version an OTA check reported, for the card's tag."""
+    version = (version or "").strip()
+    if not version:
+        return
+    try:
+        row = db.query(Setting).filter(Setting.key == "ota:latest").first()
+        if row is None:
+            db.add(Setting(key="ota:latest", value=version))
+        else:
+            row.value = version
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 def check_ota_task(device_id: int) -> dict:
     db = SessionLocal()
     try:
@@ -193,6 +209,7 @@ def check_ota_task(device_id: int) -> dict:
             return {"id": device.id, "ip": ip, "ok": False, "error": str(exc)}
         cur_ver = str(data.get("curVer", "") or "")
         new_ver = str(data.get("newVer", "") or "")
+        _remember_latest_firmware(db, new_ver)
         if cur_ver:
             device.firmware_version = cur_ver
             try:
@@ -220,6 +237,7 @@ def upgrade_ota_task(device_id: int) -> dict:
             data = ota_check(ip, user, pw)
             cur_ver = str(data.get("curVer", "") or "")
             new_ver = str(data.get("newVer", "") or "")
+            _remember_latest_firmware(db, new_ver)
             if cur_ver:
                 device.firmware_version = cur_ver
                 try:

@@ -140,3 +140,56 @@ export function memoryTone(value) {
   if (v < 40) return 'warn'
   return ''
 }
+
+// ── 卡槽信号 ───────────────────────────────────────────────────────────────
+// The board reports a percentage; four bars read faster than "69%" on a card
+// and keep the row narrow. The exact number stays in the tooltip.
+export function signalBars(value) {
+  const v = Number(value)
+  if (!Number.isFinite(v) || v <= 0) return 0
+  if (v >= 75) return 4
+  if (v >= 50) return 3
+  if (v >= 25) return 2
+  return 1
+}
+
+export function signalHint(value) {
+  const v = Number(value)
+  if (!Number.isFinite(v) || v <= 0) return '这个卡槽没有读到信号强度'
+  const bars = signalBars(v)
+  const word = ['', '很弱', '偏弱', '良好', '很强'][bars]
+  return `信号 ${v}%（${word}）`
+}
+
+// ── 固件与重启 ─────────────────────────────────────────────────────────────
+export function firmwareView(version, latest) {
+  const cur = String(version || '').trim()
+  const top = String(latest || '').trim()
+  if (!cur) return { label: '固件未知', tone: '', hint: '还没读到这块板子的固件版本' }
+  if (!top) return { label: cur, tone: '', hint: '面板还没拿到可比对的最新版本' }
+  // 板子把硬件版本接在固件后面（"X31v160　M5"）；卡片只显示主版本，
+  // 完整字符串放进 tooltip，避免把这一行撑开。
+  const short = cur.split(/[\u3000\s]+/)[0]
+  const build = (v) => Math.max(-1, ...(String(v).match(/\d+/g) || []).map(Number))
+  if (build(cur) === build(top)) {
+    return { label: `${short} · 最新`, tone: 'ok', hint: `与面板已知的最新版本 ${top} 一致` }
+  }
+  return {
+    label: short,
+    tone: 'warn',
+    hint: `当前 ${cur}，面板已知的最新版本是 ${top}，可在详情页里升级`
+  }
+}
+
+// reboots 从面板第一次收到心跳开始累计，不是板子开箱以来的总数。
+export function rebootText(link) {
+  const h = link || {}
+  const n = Number(h.reboots || 0)
+  if (!n) return { label: '未重启', tone: '', hint: '面板开始记录后没看到重启（998 心跳计数归零）' }
+  const ago = agoText(Math.max(0, Math.floor(Date.now() / 1000 - Number(h.reboot_at || 0))))
+  return {
+    label: `重启 ${n} 次${ago ? ' · ' + ago : ''}`,
+    tone: n >= 3 ? 'warn' : '',
+    hint: `面板记录到的重启次数；最近一次 ${ago || '刚刚'}`
+  }
+}

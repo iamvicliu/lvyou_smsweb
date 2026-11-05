@@ -45,6 +45,10 @@ export const useDevicesStore = defineStore('devices', () => {
   // these as global counts in the response envelope.
   const devicesOnline = ref(0)
   const devicesOffline = ref(0)
+  // Newest firmware the panel knows about; the card uses it for "是否最新".
+  const latestFirmware = ref('')
+  const unreadSms = ref(0)
+  const unreadMissed = ref(0)
   const devicesPage = ref(1)
   const devicesPageSize = ref(DEFAULT_PAGE_SIZE)
   const devicesPages = ref(0)
@@ -111,6 +115,9 @@ export const useDevicesStore = defineStore('devices', () => {
       devicesTotal.value = devPage.total
       devicesOnline.value = devPage.onlineCount || 0
       devicesOffline.value = devPage.offlineCount || Math.max((devPage.total || 0) - (devPage.onlineCount || 0), 0)
+      latestFirmware.value = devPage.latestFirmware || ''
+      unreadSms.value = (devPage.unread && devPage.unread.sms) || 0
+      unreadMissed.value = (devPage.unread && devPage.unread.missed) || 0
       devicesPage.value = devPage.page
       devicesPageSize.value = devPage.pageSize
       devicesPages.value = devPage.pages
@@ -356,6 +363,9 @@ export const useDevicesStore = defineStore('devices', () => {
     uniqueGroups,
     onlineCount,
     offlineCount,
+    latestFirmware,
+    unreadSms,
+    unreadMissed,
     selectedCount,
     filteredDevices,
     filteredNumbers,

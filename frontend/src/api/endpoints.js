@@ -36,7 +36,9 @@ export async function fetchDevicesPage({ page = 1, pageSize = 100, q = '', group
     offlineCount: data.offline_count || 0,
     page: data.page || page,
     pageSize: data.page_size || pageSize,
-    pages: data.pages || 0
+    pages: data.pages || 0,
+    latestFirmware: data.latest_firmware || '',
+    unread: data.unread || { sms: 0, missed: 0 }
   }
 }
 
@@ -115,6 +117,28 @@ export async function fetchCallHistory({ page = 1, pageSize = 30, q = '', direct
 
 export function refreshMessages(deviceId) {
   return api.post('/api/messages/refresh/' + deviceId)
+}
+
+export async function fetchSmsThreads({ page = 1, pageSize = 20, q = '', deviceId = 0 } = {}) {
+  const params = { page, page_size: pageSize }
+  if (q) params.q = q
+  if (deviceId) params.device_id = deviceId
+  const resp = await api.get('/api/messages/threads', { params })
+  return resp.data || {}
+}
+
+export async function fetchSmsThread({ phone, deviceId = 0 }) {
+  const params = { phone }
+  if (deviceId) params.device_id = deviceId
+  const resp = await api.get('/api/messages/thread', { params })
+  return resp.data || {}
+}
+
+// Advance the badge cursor for one record type. Called when the page opens
+// and on every auto refresh, so a badge only counts what arrived since the
+// operator last looked at that table.
+export function markRecordsSeen(kind) {
+  return api.post('/api/messages/seen', { kind })
 }
 
 export function fetchNotifySettings() {

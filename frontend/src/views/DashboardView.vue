@@ -65,6 +65,7 @@
 
       <DeviceGrid
         :devices="filteredDevices"
+        :latest-firmware="latestFirmware"
         :selected-ids="selectedIds"
         @toggle-select="toggleSelect"
         @show-detail="showDetail"
@@ -247,6 +248,7 @@ const {
   uniqueGroups,
   onlineCount,
   offlineCount,
+  latestFirmware,
   selectedCount,
   filteredDevices
 } = storeToRefs(devicesStore)

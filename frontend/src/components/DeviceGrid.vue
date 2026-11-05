@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useDevicesStore, useScanStore } from '../stores'
 import { useDeviceActions } from '../composables/useDeviceActions'
@@ -7,12 +8,16 @@ import { useDetail } from '../composables/useDetail'
 import {
   agoText,
   displayName,
+  firmwareView,
   groupLabel,
   linkView,
   maskText,
   memoryTone,
   operatorLabel,
   prettyTime,
+  rebootText,
+  signalBars,
+  signalHint,
   simTone,
   simToneHint,
   uptimeShort
@@ -20,7 +25,8 @@ import {
 
 const props = defineProps({
   devices: { type: Array, default: () => [] },
-  selectedIds: { type: Array, default: () => [] }
+  selectedIds: { type: Array, default: () => [] },
+  latestFirmware: { type: String, default: '' }
 })
 
 const emit = defineEmits(['toggle-select', 'show-detail', 'rename', 'set-group', 'delete', 'reorder', 'move-up', 'move-down'])
@@ -28,6 +34,7 @@ const emit = defineEmits(['toggle-select', 'show-detail', 'rename', 'set-group',
 const { scanning } = storeToRefs(useScanStore())
 const { startScanAdd } = useDeviceActions()
 const { showDetail } = useDetail()
+const router = useRouter()
 
 const dragDevice = ref(null)
 // Drag is a plain reorder: which side of the hovered card decides where the
@@ -101,6 +108,26 @@ function runtimeHint(health) {
   if (!h.at) return '还没有读取过运行信息；打开详情或点「刷新数据」会读一次'
   return `最近一次读取在 ${agoText(h.age)}，来自板子的 stat 状态`
 }
+
+function fwOf(device) {
+  return firmwareView(device.firmwareVersion, props.latestFirmware)
+}
+
+function rbOf(device) {
+  return rebootText(device.link_health)
+}
+
+function unreadOf(device) {
+  const u = device.unread || {}
+  return { sms: Number(u.sms || 0), missed: Number(u.missed || 0) }
+}
+
+function openRecords(kind, device) {
+  router.push({
+    path: kind === 'sms' ? '/messages' : '/calls',
+    query: { device: String(device.id) }
+  })
+}
 </script>
 
 <template>
@@ -139,6 +166,20 @@ function runtimeHint(health) {
         <div class="card-checkbox" @click.stop="emit('toggle-select', d.id)">
           <span :class="['checkbox', { checked: isSelected(d.id) }]">✓</span>
         </div>
+        <div class="card-badges">
+          <button
+            v-if="unreadOf(d).sms"
+            class="unread-badge sms"
+            :title="`有 ${unreadOf(d).sms} 条新收到的短信，点开查看`"
+            @click.stop="openRecords('sms', d)"
+          >{{ unreadOf(d).sms }} 条新短信</button>
+          <button
+            v-if="unreadOf(d).missed"
+            class="unread-badge missed"
+            :title="`有 ${unreadOf(d).missed} 个未接来电，点开查看`"
+            @click.stop="openRecords('calls', d)"
+          >{{ unreadOf(d).missed }} 未接</button>
+        </div>
         <div class="card-status" :class="d.status">
           {{ d.status === 'online' ? '在线' : '离线' }}
         </div>
@@ -173,7 +214,14 @@ function runtimeHint(health) {
               :class="['sim-op', simTone(d.sims.sim1.operator)]"
               :title="simToneHint(d.sims.sim1.operator)"
             >{{ operatorLabel(d.sims.sim1.operator) || '-' }}</span>
-            <span class="sim-signal" v-if="d.sims.sim1.signal > 0">{{ d.sims.sim1.signal }}%</span>
+            <span
+              v-if="d.sims.sim1.signal > 0"
+              class="sim-bars"
+              :class="'lv' + signalBars(d.sims.sim1.signal)"
+              :title="signalHint(d.sims.sim1.signal)"
+            >
+              <i v-for="n in 4" :key="n" :class="{ on: n <= signalBars(d.sims.sim1.signal) }"></i>
+            </span>
             <span class="sim-num">{{ maskText(d.sims.sim1.number || '-') }}</span>
           </div>
           <div v-if="d.sims && d.sims.sim2 && (d.sims.sim2.number || d.sims.sim2.operator)" class="sim-item">
@@ -182,9 +230,29 @@ function runtimeHint(health) {
               :class="['sim-op', simTone(d.sims.sim2.operator)]"
               :title="simToneHint(d.sims.sim2.operator)"
             >{{ operatorLabel(d.sims.sim2.operator) || '-' }}</span>
-            <span class="sim-signal" v-if="d.sims.sim2.signal > 0">{{ d.sims.sim2.signal }}%</span>
+            <span
+              v-if="d.sims.sim2.signal > 0"
+              class="sim-bars"
+              :class="'lv' + signalBars(d.sims.sim2.signal)"
+              :title="signalHint(d.sims.sim2.signal)"
+            >
+              <i v-for="n in 4" :key="n" :class="{ on: n <= signalBars(d.sims.sim2.signal) }"></i>
+            </span>
             <span class="sim-num">{{ maskText(d.sims.sim2.number || '-') }}</span>
           </div>
+        </div>
+
+        <div class="facts-row">
+          <span
+            class="fact"
+            :class="fwOf(d).tone"
+            :title="fwOf(d).hint"
+          >固件 {{ fwOf(d).label }}</span>
+          <span
+            class="fact"
+            :class="rbOf(d).tone"
+            :title="rbOf(d).hint"
+          >{{ rbOf(d).label }}</span>
         </div>
 
         <div class="device-meta">
@@ -282,4 +350,56 @@ function runtimeHint(health) {
 }
 .runtime-text.warn { color: var(--warning); }
 .runtime-text.bad { color: var(--danger); }
+
+.card-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  margin-right: 8px;
+  min-width: 0;
+}
+.unread-badge {
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--danger-glow);
+  color: var(--danger);
+}
+.unread-badge.missed { background: var(--warning-glow); color: var(--warning); }
+.unread-badge:hover { filter: brightness(1.08); }
+
+/* 四格信号：细条比百分比更快读，精确数值放在 tooltip 里。 */
+.sim-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 11px; flex-shrink: 0; }
+.sim-bars i {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--border);
+  display: block;
+}
+.sim-bars i:nth-child(1) { height: 4px; }
+.sim-bars i:nth-child(2) { height: 6px; }
+.sim-bars i:nth-child(3) { height: 8px; }
+.sim-bars i:nth-child(4) { height: 11px; }
+.sim-bars i.on { background: var(--success); }
+.sim-bars.lv1 i.on { background: var(--danger); }
+.sim-bars.lv2 i.on { background: var(--warning); }
+
+.facts-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: -2px 0 8px;
+}
+.fact { white-space: nowrap; }
+.fact.ok { color: var(--success); }
+.fact.warn { color: var(--warning); }
 </style>

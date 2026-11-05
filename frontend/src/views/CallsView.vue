@@ -37,6 +37,14 @@
         >
           {{ syncing ? '同步中…' : '同步最新记录' }}
         </button>
+        <button
+          class="toolbar-btn"
+          :disabled="exporting"
+          title="按当前筛选条件导出全部通话（CSV，可用 Excel 打开）"
+          @click="exportCsv"
+        >
+          {{ exporting ? '导出中…' : '导出 CSV' }}
+        </button>
       </div>
 
       <div class="records-scroll records-table-only">
@@ -133,7 +141,7 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore, useDevicesStore } from '../stores'
 import AppHeader from '../components/AppHeader.vue'
 import Pagination from '../components/Pagination.vue'
@@ -141,6 +149,7 @@ import LiveCallPanel from '../components/LiveCallPanel.vue'
 import AudioClip from '../components/AudioClip.vue'
 import {
   fetchCallHistory,
+  markRecordsSeen,
   refreshMessages,
   deleteRecording,
   recordingAudioUrl,
@@ -150,12 +159,14 @@ import { useTheme } from '../composables/useTheme'
 import { maskText, simLabel } from '../utils/format'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const devicesStore = useDevicesStore()
 const { isDark, toggleTheme } = useTheme()
 
 const loading = ref(false)
 const syncing = ref(false)
+const exporting = ref(false)
 const q = ref('')
 const direction = ref('')
 const deviceId = ref(0)
@@ -222,8 +233,67 @@ async function load() {
     items.value = data.items || []
     total.value = data.total || 0
     pages.value = data.pages || 0
+    await markRecordsSeen('calls')
   } finally {
     loading.value = false
+  }
+}
+
+function csvCell(value) {
+  const s = String(value ?? '')
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+function saveCsv(name, header, rows) {
+  const body = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n')
+  const blob = new Blob(['\uFEFF' + body], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const rows = []
+    let p = 1
+    let pageCount = 1
+    do {
+      const data = await fetchCallHistory({
+        page: p,
+        pageSize: 200,
+        q: q.value.trim(),
+        direction: direction.value,
+        deviceId: deviceId.value
+      })
+      rows.push(...(data.items || []))
+      pageCount = data.pages || 0
+      p += 1
+      if (p > 200) break
+    } while (p <= pageCount)
+
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    saveCsv(
+      `通话记录-${stamp}.csv`,
+      ['时间', '设备', '卡槽', '方向', '号码', '状态', '时长(秒)', '录音'],
+      rows.map(r => [
+        r.call_time,
+        r.device_name,
+        simLabel(r.sim_slot, r.sim_number),
+        r.direction === 'incoming' ? '呼入' : '呼出',
+        r.phone,
+        actionLabel(r.action),
+        r.duration || 0,
+        r.recording && r.recording.status !== 'failed' ? '有' : ''
+      ])
+    )
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -254,6 +324,8 @@ onMounted(async () => {
     router.push('/login')
     return
   }
+  const preset = Number(route.query.device || 0)
+  if (preset) deviceId.value = preset
   await devicesStore.refresh()
   devices.value = devicesStore.devices
   await load()

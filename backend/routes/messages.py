@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.db import (
@@ -187,6 +188,126 @@ def api_sms_history(
             for r in rows
         ],
     }
+
+
+@router.get("/api/messages/threads")
+def api_sms_threads(
+    device_id: int = Query(0, ge=0),
+    q: str = Query("", max_length=128),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    """One row per phone number: the conversation list view."""
+    from sqlalchemy import func
+
+    base = db.query(SmsRecord)
+    if device_id:
+        base = base.filter(SmsRecord.device_id == device_id)
+    if q:
+        like = f"%{q}%"
+        base = base.filter(SmsRecord.phone.like(like) | SmsRecord.content.like(like))
+
+    grouped = (
+        base.with_entities(
+            SmsRecord.phone.label("phone"),
+            func.max(SmsRecord.sms_ts).label("last_ts"),
+            func.count(SmsRecord.id).label("total"),
+        )
+        .group_by(SmsRecord.phone)
+        .subquery()
+    )
+    total = db.query(func.count()).select_from(grouped).scalar() or 0
+    rows = (
+        db.query(grouped)
+        .order_by(grouped.c.last_ts.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    items = []
+    for row in rows:
+        phone = row.phone or ""
+        last = (
+            base.filter(SmsRecord.phone == phone)
+            .order_by(SmsRecord.sms_ts.desc(), SmsRecord.id.desc())
+            .first()
+        )
+        received = (
+            base.filter(SmsRecord.phone == phone, SmsRecord.direction == "received").count()
+        )
+        items.append({
+            "phone": phone,
+            "total": int(row.total or 0),
+            "received": int(received),
+            "last_ts": int(row.last_ts or 0),
+            "last_time": last.sms_time if last else "",
+            "last_content": last.content if last else "",
+            "last_direction": last.direction if last else "",
+            "device_name": _device_label(db, last.device_id, last.dev_id) if last else "",
+        })
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": (total + page_size - 1) // page_size if total else 0,
+        "items": items,
+    }
+
+
+@router.get("/api/messages/thread")
+def api_sms_thread(
+    phone: str = Query(..., max_length=64),
+    device_id: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """Every message exchanged with one number, oldest first, as chat bubbles."""
+    query = db.query(SmsRecord).filter(SmsRecord.phone == phone)
+    if device_id:
+        query = query.filter(SmsRecord.device_id == device_id)
+    rows = query.order_by(SmsRecord.sms_ts.desc(), SmsRecord.id.desc()).limit(limit).all()
+    rows.reverse()
+    sim_map = _sim_number_map(db, rows)
+    return {
+        "phone": phone,
+        "items": [
+            {
+                "id": r.id,
+                "device_id": r.device_id,
+                "device_name": _device_label(db, r.device_id, r.dev_id),
+                "sim_slot": r.sim_slot,
+                "sim_number": _row_sim_number(sim_map, r.device_id, r.sim_slot),
+                "content": r.content,
+                "direction": r.direction,
+                "sms_ts": r.sms_ts,
+                "sms_time": r.sms_time,
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.get("/api/messages/unread")
+def api_unread(db: Session = Depends(get_db)):
+    from backend import unread as unread_mod
+
+    return unread_mod.by_device(db)
+
+
+class SeenReq(BaseModel):
+    kind: str
+
+
+@router.post("/api/messages/seen")
+def api_seen(req: SeenReq, db: Session = Depends(get_db)):
+    from backend import unread as unread_mod
+
+    if req.kind not in ("sms", "calls"):
+        raise HTTPException(status_code=400, detail="kind 只能是 sms 或 calls")
+    return {"ok": True, "seen_at": unread_mod.mark_seen(db, req.kind)}
 
 
 @router.get("/api/messages/calls")

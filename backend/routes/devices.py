@@ -315,6 +315,17 @@ class BatchOtaReq(BaseModel):
 
 # ── Device list / CRUD ───────────────────────────────────────────────────────
 
+def _fw_key(version: str):
+    """Sort firmware labels like ``X31v160　M5`` by their build number.
+
+    The board appends a hardware revision after a full-width space, so the
+    trailing digits belong to that revision; the build number is the largest
+    digit run in the label.
+    """
+    nums = [int(n) for n in re.findall(r"\d+", str(version or ""))]
+    return (max(nums) if nums else -1, str(version or ""))
+
+
 @router.get("/api/devices")
 def apidevices(
     page: int = Query(1, ge=1),
@@ -334,6 +345,7 @@ def apidevices(
     payload = [_device_to_dict(d) for d in items]
     # Link health and the last `stat` reading are stored per board, so the
     # dashboard can say "panel link is bad, board is fine" without polling.
+    unread: Dict[str, Any] = {"devices": {}, "sms": 0, "missed": 0}
     try:
         from backend import linkhealth
 
@@ -345,6 +357,33 @@ def apidevices(
         for row in payload:
             row.setdefault("link_health", {})
             row.setdefault("runtime_health", {})
+    try:
+        from backend import unread as unread_mod
+
+        unread = unread_mod.by_device(db)
+        counts = unread.get("devices") or {}
+        for row in payload:
+            row["unread"] = counts.get(int(row["id"]), {"sms": 0, "missed": 0})
+    except Exception:
+        for row in payload:
+            row.setdefault("unread", {"sms": 0, "missed": 0})
+    # "是否最新" has no upstream feed we can trust: compare against the newest
+    # version the panel knows, either from an OTA check or the fleet itself.
+    latest = ""
+    try:
+        from backend.db import Setting
+
+        row = db.query(Setting).filter(Setting.key == "ota:latest").first()
+        if row is not None and row.value:
+            latest = str(row.value)
+    except Exception:
+        latest = ""
+    versions = [str(r.get("firmwareVersion") or "") for r in payload]
+    versions = [v for v in versions if v]
+    if versions:
+        newest = max(versions, key=_fw_key)
+        if not latest or _fw_key(newest) > _fw_key(latest):
+            latest = newest
     return {
         "items": payload,
         "total": total,
@@ -353,6 +392,8 @@ def apidevices(
         "page": page,
         "page_size": page_size,
         "pages": (total + page_size - 1) // page_size if total else 0,
+        "latest_firmware": latest,
+        "unread": {"sms": unread.get("sms", 0), "missed": unread.get("missed", 0)},
     }
 
 
