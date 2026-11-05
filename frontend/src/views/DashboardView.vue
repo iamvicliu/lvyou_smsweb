@@ -34,6 +34,7 @@
       @dial="dial"
     />
 
+    <div class="dash-split">
     <section class="device-panel">
       <div class="panel-head">
         <div class="panel-tabs">
@@ -96,6 +97,9 @@
         @change="devicesStore.setDevicesPage"
       />
     </section>
+
+      <LiveSmsFeed class="feed-rail" />
+    </div>
 
     <WifiModal
       v-if="showWifiModal"
@@ -162,6 +166,7 @@ import StatsGrid from '../components/StatsGrid.vue'
 import MessagePanel from '../components/MessagePanel.vue'
 import DeviceGrid from '../components/DeviceGrid.vue'
 import Pagination from '../components/Pagination.vue'
+import LiveSmsFeed from '../components/LiveSmsFeed.vue'
 import WifiModal from '../components/WifiModal.vue'
 import OtaModal from '../components/OtaModal.vue'
 import DetailModal from '../components/DetailModal.vue'
@@ -406,5 +411,34 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.dashboard { padding: 24px; max-width: 1440px; margin: 0 auto; }
+.dashboard { padding: 24px; max-width: 1560px; margin: 0 auto; }
+
+/* Device cards and the live feed share one row on desktop. The rail is sticky
+   so new messages stay in view while the card list scrolls under it. */
+.dash-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+.feed-rail {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
+}
+
+/* Narrow laptops keep the rail but drop to two card columns; three columns in
+   that width made the SIM rows wrap. */
+@media (max-width: 1359px) {
+  .dash-split { grid-template-columns: minmax(0, 1fr) 270px; }
+  .dash-split :deep(.cards-grid) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Phones and tablets stack: the rail would leave the cards unreadably thin,
+   and it moves above the card list so it is not buried under five boards. */
+@media (max-width: 1023px) {
+  .dash-split { display: flex; flex-direction: column; }
+  .dash-split :deep(.cards-grid) { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+  .feed-rail { position: static; order: -1; max-height: 420px; }
+}
 </style>
