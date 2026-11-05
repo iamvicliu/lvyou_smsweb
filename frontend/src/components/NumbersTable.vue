@@ -73,6 +73,7 @@ const { filteredNumbers } = storeToRefs(devicesStore)
 .num-note { margin-left: 6px; font-family: inherit; font-size: 12px; color: var(--text-muted); }
 .bad { color: var(--danger); font-weight: 600; }
 .warn { color: var(--warning); }
+.none { color: var(--warning); opacity: 0.8; }
 .slot-chip {
   margin-left: auto;
   font-size: 11px;

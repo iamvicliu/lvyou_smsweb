@@ -49,10 +49,13 @@ export function numberParts(raw) {
 // that mean "this card cannot be used" must look different from a carrier.
 const SIM_BAD = ['拒绝', '卡异常', '异常', '受限', '未注册', '欠费', '停机', '故障', 'pin', 'puk']
 const SIM_WARN = ['启动', '搜索', '注册中', '初始化', '飞行']
+// 空卡槽不是故障：弱黄色提示"这里没插卡"，与红色错误、灰色正常区分开。
+const SIM_NONE = ['无卡', '未插卡', '未检测到卡']
 
 export function simTone(operator) {
   const s = operatorLabel(operator).toLowerCase()
   if (!s) return ''
+  if (SIM_NONE.some(k => s.includes(k))) return 'none'
   if (SIM_BAD.some(k => s.includes(k))) return 'bad'
   if (SIM_WARN.some(k => s.includes(k))) return 'warn'
   return ''
@@ -62,6 +65,7 @@ export function simToneHint(operator) {
   const tone = simTone(operator)
   if (tone === 'bad') return '板子报告这张卡当前不可用（拒绝 / 卡异常 / 停机等）'
   if (tone === 'warn') return '这张卡还在注册网络，稍后再看'
+  if (tone === 'none') return '这个卡槽没有插卡：不是故障，也不影响另一张卡'
   return ''
 }
 

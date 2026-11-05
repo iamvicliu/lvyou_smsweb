@@ -241,6 +241,8 @@ function slotStateLabel(state) {
 function slotTone(state) {
   if (state === 'OK') return 'ok'
   if (state === 'NS') return 'warn'
+  // 空卡槽只是没插卡，不该和"卡异常"一样红。
+  if (state === 'NOSIM') return 'none'
   return 'miss'
 }
 
@@ -505,6 +507,7 @@ onMounted(() => {
 .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; white-space: nowrap; }
 .tag.ok { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 .tag.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.tag.none { background: rgba(245, 158, 11, 0.08); color: var(--warning); opacity: 0.8; }
 .tag.miss { background: rgba(239, 68, 68, 0.15); color: #f87171; }
 .hint { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
 .msg { font-size: 12px; line-height: 1.5; }
@@ -513,6 +516,7 @@ onMounted(() => {
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bad { color: var(--danger); font-weight: 600; }
 .warn { color: var(--warning); }
+.none { color: var(--warning); opacity: 0.8; }
 @media (max-width: 640px) {
   .identity { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .slot-row, .stat-grid, .maint-grid { grid-template-columns: 1fr; }
