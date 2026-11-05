@@ -683,9 +683,10 @@ def api_tel_live(db: Session = Depends(get_db)):
     # where the far end rings but there is nothing to pick up on the board.
     active_types = {601: "ringing", 602: "answered", 620: "dialing",
                     621: "dialing", 622: "answered"}
-    # Ringing dies out after ~60s on every carrier; a connected call cannot
-    # outlive the 175s board cap.
-    max_age = {"ringing": 90, "dialing": 90, "answered": 200}
+    # Ringing dies out after ~60s on every carrier. The board hangs a call up
+    # itself at ``cims`` seconds (120s on these boards, 175s hard max), so an
+    # answered entry past that point is a lost 603 push rather than a live line.
+    max_age = {"ringing": 90, "dialing": 90, "answered": 130}
     seen = set()
     items = []
     for row in rows:
