@@ -508,6 +508,26 @@ _LOCAL_PHONE_RE = re.compile(r"号码[：:]\s*([+0-9]+)")
 _LOCAL_DEV_RE = re.compile(r"来自设备[：:]\s*([0-9A-Za-z_-]+)")
 _LOCAL_SLOT_RE = re.compile(r"卡\s*(\d)")
 
+# Boards that were set up for a direct Bark push render 501/502 through a
+# custom template, so the POST carries title/subtitle/body instead of the
+# event's own ``type`` / ``devId`` fields. The panel used to drop those
+# payloads, which meant SMS only appeared when some later call triggered a
+# catch-up poll. Read the rendered text back so the push stays real-time.
+_BARK_TS = r"\d{4}-\d{2}-\d{2}[ T]\d{1,2}:\d{2}:\d{2}"
+_BARK_RECV_RE = re.compile(
+    r"→\s*短信号码[：:]\s*(?P<num>[^\n]*)\n+"
+    r"\s*→\s*短信时间[：:]\s*(?P<ts>" + _BARK_TS + r")"
+)
+_BARK_SENT_RE = re.compile(
+    r"→\s*短信内容[：:]\s*(?P<content>(?s:.*?))"
+    r"→\s*目标号码[：:]\s*(?P<num>[^\n]*)\n"
+    r"(?s:.*?)→\s*时间[：:]\s*(?P<ts>" + _BARK_TS + r")"
+)
+_BARK_DEV_RE = re.compile(r"↑\s*(?:来自|发出)设备[：:]\s*(?P<name>[^\n]+)")
+_BARK_SLOT_RE = re.compile(
+    r"↑\s*卡槽[：:]\s*(?P<sim>[^（(\n]*)[（(]\s*卡\s*(?P<slot>\d)\s*[)）]"
+)
+
 
 def _plmn_operator(imsi: Any, dbm: Any) -> str:
     """Build the dashboard's ``移动(46000) 84%`` label from a 204 push."""
@@ -535,14 +555,134 @@ def _find_device(db: Session, dev_id: str, source_ip: str = "") -> Optional[Devi
     return device
 
 
+def _sms_already_stored(db: Session, device: Optional[Device], sms_ts: int,
+                        direction: str, phone: str) -> bool:
+    """Same message may already be in the DB via ``querysms``.
+
+    The custom template rewrites the body (it appends punctuation and strips
+    escapes), so the content hash cannot be reused for dedup. The board's own
+    second-resolution timestamp plus the peer number identify the message.
+    """
+    digits = re.sub(r"[^0-9]", "", phone or "")
+    if not digits:
+        return False
+    query = db.query(SmsRecord).filter(
+        SmsRecord.sms_ts == int(sms_ts), SmsRecord.direction == direction
+    )
+    if device is not None:
+        query = query.filter(SmsRecord.device_id == device.id)
+    for row in query.limit(10).all():
+        if re.sub(r"[^0-9]", "", row.phone or "") == digits:
+            return True
+    return False
+
+
+def _bark_sms_push(db: Session, data: Dict[str, Any], source_ip: str) -> Optional[Dict[str, Any]]:
+    """Ingest a 501/502 rendered through a board's Bark template."""
+    body = str(data.get("body") or "")
+    if "短信" not in body and "短信" not in str(data.get("subtitle") or ""):
+        return None
+    match = _BARK_SENT_RE.search(body)
+    direction = "sent"
+    if match is None:
+        match = _BARK_RECV_RE.search(body)
+        direction = "received"
+    if match is None:
+        return None
+
+    phone = re.sub(r"\s+", "", match.group("num") or "")
+    if direction == "sent":
+        content = (match.group("content") or "").strip()
+    else:
+        content = body[: match.start()].strip()
+    try:
+        ts = int(
+            datetime.strptime(match.group("ts").replace("T", " "), "%Y-%m-%d %H:%M:%S")
+            .replace(tzinfo=CST)
+            .timestamp()
+        )
+    except ValueError:
+        ts = int(time.time())
+
+    dev_name = ""
+    dev_match = _BARK_DEV_RE.search(body)
+    if dev_match:
+        dev_name = dev_match.group("name").strip()
+    device = None
+    if dev_name:
+        device = db.query(Device).filter(Device.alias == dev_name).first()
+    if device is None:
+        device = _find_device(db, "", source_ip)
+
+    sim_number = ""
+    sim_slot = "sim1"
+    slot_match = _BARK_SLOT_RE.search(body)
+    if slot_match:
+        sim_slot = f"sim{slot_match.group('slot')}"
+        sim_number = slot_match.group("sim").strip()
+
+    if device is not None:
+        _poll_failures.pop(device.devId or device.ip, None)
+        device.status = "online"
+        device.lastSeen = int(time.time())
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+    label = device_label(device) if device else (source_ip or dev_name or "unknown")
+
+    if _sms_already_stored(db, device, ts, direction, phone):
+        return {"status": "ok", "stored": False, "type": "local-sms", "reason": "duplicate"}
+
+    inserted, record_id = store_sms(
+        db,
+        device=device,
+        dev_id=device.devId if device else "",
+        sim_slot=sim_slot,
+        phone=phone,
+        content=content,
+        direction=direction,
+        sms_ts=ts,
+        raw=data,
+    )
+    if inserted:
+        _learn_sim_number(db, device, sim_slot, sim_number)
+        notify_sms(
+            label,
+            sim_slot,
+            phone,
+            content,
+            direction,
+            db=db,
+            sim_number=_pick_sim_number(device, sim_slot, sim_number),
+        )
+    return {
+        "status": "ok",
+        "stored": inserted,
+        "id": record_id,
+        "type": "local-sms",
+        "direction": direction,
+    }
+
+
 def _ingest_board_local_push(db: Session, data: Dict[str, Any], source_ip: str) -> Dict[str, Any]:
-    """Handle the board's Bark-style missed-call template.
+    """Handle the board's Bark-style templates (501/502 SMS, 603 missed call).
 
     Some firmware builds render 603 through the board's own "local push"
     template instead of the raw event JSON. The template has no type field,
     but it names the caller and the device, which is enough to close the
     ringing record that the matching 601 opened.
     """
+    sms_result = _bark_sms_push(db, data, source_ip)
+    if sms_result is not None:
+        return sms_result
+    # A template the panel does not recognise yet (new firmware wording, a
+    # different renderer) must not disappear silently: pull once from the
+    # board's own ring buffer instead. The shared 5-minute cooldown keeps
+    # this from turning into timed polling.
+    device = _find_device(db, "", source_ip)
+    if device is not None:
+        _schedule_history_catchup(device, delay=5)
     body = str(data.get("body") or "")
     if "未接来电" not in body:
         return {"status": "ignored", "reason": "local-push"}
