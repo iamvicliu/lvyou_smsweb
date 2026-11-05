@@ -1,20 +1,15 @@
 <template>
   <div class="settings-view">
-    <header class="header">
-      <div class="header-left">
-        <button class="back-btn" @click="router.push('/dashboard')" title="返回">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-        </button>
-        <div class="header-title">
-          <h1>系统设置</h1>
-        </div>
-      </div>
-      <div class="header-right">
-        <button class="header-btn logout" @click="handleLogout">退出</button>
-      </div>
-    </header>
+    <AppHeader
+      :loading="settingsLoading"
+      :scanning="false"
+      :is-dark="isDark"
+      @scan="scanFromSettings"
+      @refresh="reloadSettings"
+      @logout="handleLogout"
+      @toggle-theme="toggleTheme"
+      @open-settings="$router.push('/settings')"
+    />
 
     <div class="settings-grid">
       <div class="settings-card">
@@ -275,6 +270,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import AppHeader from '../components/AppHeader.vue'
 import { useAuthStore, useDevicesStore } from '../stores'
 import { useTheme } from '../composables/useTheme'
 import { useDeviceActions } from '../composables/useDeviceActions'
@@ -300,7 +296,8 @@ const authStore = useAuthStore()
 const devicesStore = useDevicesStore()
 
 const { isDark, toggleTheme } = useTheme()
-const { refresh } = useDeviceActions()
+const { refresh, startScanAdd } = useDeviceActions()
+const settingsLoading = ref(false)
 
 const credUser = ref('admin')
 const credPass = ref('')
@@ -666,6 +663,29 @@ async function handleLogout() {
   router.push('/login')
 }
 
+async function reloadSettings() {
+  settingsLoading.value = true
+  try {
+    await Promise.all([
+      loadCredential(),
+      loadNotify(),
+      loadPushStats(),
+      loadRecordingConfig(),
+      loadGuard(),
+      devicesStore.refresh(),
+    ])
+    await loadAnswerConfig()
+  } finally {
+    settingsLoading.value = false
+  }
+}
+
+// 设置页没有自己的搜索结果面板，扫到的板子统一回设备页展示。
+function scanFromSettings() {
+  router.push('/dashboard')
+  startScanAdd()
+}
+
 onMounted(async () => {
   if (!(await authStore.restore())) {
     router.push('/login')
@@ -684,41 +704,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.settings-view { padding: 20px 24px 28px; max-width: 1440px; margin: 0 auto; }
-.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
-.header-left { display: flex; align-items: center; gap: 12px; }
-.header-right { display: flex; align-items: center; gap: 8px; }
-.header-title h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-.back-btn {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition);
-}
-.back-btn:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--border-light);
-  transform: translateX(-2px);
-}
-.header-btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  padding: 8px 18px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  transition: all var(--transition);
-}
-.header-btn.logout:hover { background: var(--danger-glow); }
+.settings-view { padding: 24px; max-width: 1440px; margin: 0 auto; }
 .page-title { font-size: 24px; font-weight: 700; margin-bottom: 24px; letter-spacing: -0.02em; }
 .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
 .settings-card.wide { grid-column: 1 / -1; }

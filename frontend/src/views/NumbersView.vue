@@ -13,10 +13,7 @@
 
     <section class="device-panel">
       <div class="panel-head">
-        <div class="panel-tabs">
-          <button class="panel-tab" @click="$router.push('/dashboard')">设备 <b>{{ devicesStore.devicesTotal }}</b></button>
-          <button class="panel-tab active">号码 <b>{{ devicesStore.numbersTotal }}</b></button>
-        </div>
+        <span class="panel-title">号码 <b>{{ devicesStore.numbersTotal }}</b></span>
         <div class="panel-filters">
           <input v-model="searchText" class="search-input" placeholder="搜索号码 / 设备 / IP" />
           <select v-model="groupFilter" class="filter-select">

@@ -25,10 +25,7 @@
 
     <section class="device-panel">
       <div class="panel-head">
-        <div class="panel-tabs">
-          <button class="panel-tab active">设备 <b>{{ devicesStore.devicesTotal }}</b></button>
-          <button class="panel-tab" @click="$router.push('/numbers')">号码 <b>{{ devicesStore.numbersTotal }}</b></button>
-        </div>
+        <span class="panel-title">设备 <b>{{ devicesStore.devicesTotal }}</b></span>
         <div class="panel-filters">
           <input v-model="searchText" class="search-input" placeholder="搜索设备 / IP / MAC / 号码" />
           <select v-model="groupFilter" class="filter-select">

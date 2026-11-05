@@ -58,7 +58,7 @@
               <th style="width:140px">号码</th>
               <th style="width:80px">状态</th>
               <th style="width:80px">时长</th>
-              <th style="width:240px">录音</th>
+              <th style="width:262px">录音</th>
             </tr>
           </thead>
           <tbody>
@@ -340,9 +340,9 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .muted { color: var(--text-muted, #94a3b8); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
-.tag.ok { background: rgba(16, 185, 129, 0.15); color: #34d399; }
-.tag.miss { background: rgba(239, 68, 68, 0.15); color: #f87171; }
-.tag.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.tag.ok { background: var(--success-glow); color: var(--success); }
+.tag.miss { background: var(--danger-glow); color: var(--danger); }
+.tag.warn { background: var(--warning-glow); color: var(--warning); }
 .rec-fail { color: var(--danger); font-size: 12px; }
 @media (max-width: 640px) {
   .calls-view { padding: 14px; }

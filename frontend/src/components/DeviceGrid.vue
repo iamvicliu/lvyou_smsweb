@@ -122,6 +122,15 @@ function unreadOf(device) {
   return { sms: Number(u.sms || 0), missed: Number(u.missed || 0) }
 }
 
+function simOf(device, slot) {
+  const s = (device.sims && device.sims['sim' + slot]) || {}
+  return {
+    number: s.number || '',
+    operator: s.operator || '',
+    signal: Number(s.signal || 0)
+  }
+}
+
 function openRecords(kind, device) {
   router.push({
     path: kind === 'sms' ? '/messages' : '/calls',
@@ -204,41 +213,23 @@ function openRecords(kind, device) {
           >{{ runtimeText(d.runtime_health) }}</span>
         </div>
 
-        <div
-          v-if="(d.sims && d.sims.sim1 && (d.sims.sim1.number || d.sims.sim1.operator)) || (d.sims && d.sims.sim2 && (d.sims.sim2.number || d.sims.sim2.operator))"
-          class="sims-info"
-        >
-          <div v-if="d.sims && d.sims.sim1 && (d.sims.sim1.number || d.sims.sim1.operator)" class="sim-item">
-            <span class="sim-label">SIM1</span>
+        <!-- 两个卡槽固定各占一行：缺卡也保留占位，卡片高度才不会一高一低。 -->
+        <div class="sims-info">
+          <div v-for="slot in [1, 2]" :key="slot" class="sim-item">
+            <span class="sim-label">SIM{{ slot }}</span>
             <span
-              :class="['sim-op', simTone(d.sims.sim1.operator)]"
-              :title="simToneHint(d.sims.sim1.operator)"
-            >{{ operatorLabel(d.sims.sim1.operator) || '-' }}</span>
+              :class="['sim-op', simTone(simOf(d, slot).operator)]"
+              :title="simToneHint(simOf(d, slot).operator)"
+            >{{ operatorLabel(simOf(d, slot).operator) || '无卡' }}</span>
             <span
-              v-if="d.sims.sim1.signal > 0"
+              v-if="simOf(d, slot).signal > 0"
               class="sim-bars"
-              :class="'lv' + signalBars(d.sims.sim1.signal)"
-              :title="signalHint(d.sims.sim1.signal)"
+              :class="'lv' + signalBars(simOf(d, slot).signal)"
+              :title="signalHint(simOf(d, slot).signal)"
             >
-              <i v-for="n in 4" :key="n" :class="{ on: n <= signalBars(d.sims.sim1.signal) }"></i>
+              <i v-for="n in 4" :key="n" :class="{ on: n <= signalBars(simOf(d, slot).signal) }"></i>
             </span>
-            <span class="sim-num">{{ maskText(d.sims.sim1.number || '-') }}</span>
-          </div>
-          <div v-if="d.sims && d.sims.sim2 && (d.sims.sim2.number || d.sims.sim2.operator)" class="sim-item">
-            <span class="sim-label">SIM2</span>
-            <span
-              :class="['sim-op', simTone(d.sims.sim2.operator)]"
-              :title="simToneHint(d.sims.sim2.operator)"
-            >{{ operatorLabel(d.sims.sim2.operator) || '-' }}</span>
-            <span
-              v-if="d.sims.sim2.signal > 0"
-              class="sim-bars"
-              :class="'lv' + signalBars(d.sims.sim2.signal)"
-              :title="signalHint(d.sims.sim2.signal)"
-            >
-              <i v-for="n in 4" :key="n" :class="{ on: n <= signalBars(d.sims.sim2.signal) }"></i>
-            </span>
-            <span class="sim-num">{{ maskText(d.sims.sim2.number || '-') }}</span>
+            <span class="sim-num">{{ simOf(d, slot).number ? maskText(simOf(d, slot).number) : '—' }}</span>
           </div>
         </div>
 
@@ -394,12 +385,13 @@ function openRecords(kind, device) {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   font-size: 11px;
   color: var(--text-muted);
   margin: -2px 0 8px;
+  overflow: hidden;
 }
-.fact { white-space: nowrap; }
+.fact { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .fact.ok { color: var(--success); }
 .fact.warn { color: var(--warning); }
 </style>

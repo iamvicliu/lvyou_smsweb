@@ -140,8 +140,8 @@ onBeforeUnmount(() => {
 .audio-clip {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  min-width: 218px;
+  gap: 8px;
+  min-width: 250px;
   max-width: 100%;
   padding: 3px 4px;
 }
@@ -161,8 +161,8 @@ onBeforeUnmount(() => {
   transition: color var(--transition), background var(--transition), transform var(--transition);
 }
 .clip-btn svg { width: 15px; height: 15px; }
-.clip-btn.play { background: var(--primary-glow); color: var(--primary); }
-.clip-btn.play:hover { background: var(--primary); color: #fff; transform: scale(1.04); }
+.clip-btn.play { background: var(--primary); color: #fff; box-shadow: 0 2px 8px var(--primary-glow); }
+.clip-btn.play:hover { filter: brightness(1.06); transform: scale(1.04); }
 .clip-btn.ghost:hover { color: var(--text-primary); background: var(--bg-input); }
 .clip-btn.danger:hover { color: var(--danger); background: var(--danger-glow); }
 .clip-btn:focus-visible,
@@ -170,18 +170,18 @@ onBeforeUnmount(() => {
 .clip-track {
   position: relative;
   flex: 1;
-  min-width: 76px;
-  height: 5px;
+  min-width: 96px;
+  height: 6px;
   border-radius: 999px;
-  background: var(--border);
+  background: color-mix(in srgb, var(--text-muted) 28%, transparent);
   cursor: pointer;
   transition: background var(--transition);
 }
-.clip-track:hover { background: var(--border-light); }
+.clip-track:hover { background: color-mix(in srgb, var(--text-muted) 40%, transparent); }
 .clip-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--primary), var(--primary-light, var(--primary)));
+  background: var(--primary);
   pointer-events: none;
 }
 .clip-thumb {

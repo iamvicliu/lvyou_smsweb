@@ -332,7 +332,13 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   color: var(--text-primary);
-  padding: 9px 16px;
+  /* 和筛选框、搜索框同高，同一行里不会一高一低。 */
+  height: 36px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
   border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 13px;
@@ -369,25 +375,6 @@ body {
   border-bottom: 1px solid var(--border);
   margin-bottom: 14px;
 }
-.panel-tabs { display: inline-flex; gap: 2px; background: var(--bg-input); border-radius: var(--radius-sm); padding: 3px; }
-.panel-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  padding: 6px 12px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  transition: all var(--transition);
-}
-.panel-tab:hover { color: var(--text-primary); }
-.panel-tab.active { background: var(--bg-card); color: var(--text-primary); font-weight: 600; box-shadow: var(--shadow-sm); }
-.panel-tab b { font-weight: 600; font-size: 12px; color: var(--text-muted); }
-.panel-tab.active b { color: var(--primary); }
 .panel-filters { display: flex; gap: 8px; flex: 1; min-width: 240px; flex-wrap: wrap; }
 .panel-filters .search-input { max-width: none; padding: 8px 12px 8px 34px; }
 .panel-filters .filter-select { padding: 8px 12px; }
@@ -512,6 +499,9 @@ body {
   overflow: hidden;
   border: 1px solid var(--border);
   transition: all var(--transition);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 .device-card:hover {
   border-color: var(--border-light);
@@ -544,13 +534,13 @@ body {
 .card-status.online { background: var(--success-glow); color: var(--success); }
 .card-status.offline { background: var(--danger-glow); color: var(--danger); }
 
-.card-body { padding: 16px; }
+.card-body { padding: 16px; display: flex; flex-direction: column; flex: 1 1 auto; }
 .device-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .device-ip { font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace; font-size: 13px; color: var(--primary); margin-bottom: 3px; }
 .device-mac { font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace; font-size: 11px; color: var(--text-muted); margin-bottom: 12px; }
 
 .sims-info { background: var(--bg-input); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--border); overflow: hidden; }
-.sim-item { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; min-width: 0; }
+.sim-item { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: nowrap; min-width: 0; min-height: 16px; }
 .sim-item:last-child { margin-bottom: 0; }
 .sim-label { font-size: 10px; background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; font-weight: 600; }
 .sim-op { font-size: 11px; color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -564,9 +554,9 @@ body {
   margin-left: auto; color: var(--text-secondary); max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.device-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); }
+.device-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--text-muted); margin-top: auto; white-space: nowrap; overflow: hidden; }
 
-.card-actions { display: flex; border-top: 1px solid var(--border); }
+.card-actions { display: flex; border-top: 1px solid var(--border); margin-top: auto; }
 .card-btn {
   flex: 1;
   background: none;
@@ -845,7 +835,17 @@ body {
 
 /* ── Responsive ── */
 @media (max-width: 640px) {
-  .header { flex-direction: column; align-items: flex-start; }
+  /* 手机上把顶部收成三行：标题 + 图标 / 导航 / 操作按钮。
+     原来的 column 布局会让退出按钮单独占一行，整块顶到半屏高。 */
+  .header { flex-direction: row; align-items: center; flex-wrap: wrap; row-gap: 10px; }
+  .header-left { flex: 1 1 auto; min-width: 0; gap: 10px; }
+  .header-title h1 { font-size: 18px; }
+  .header-title p { display: none; }
+  .logo { width: 34px; height: 34px; }
+  .header-right { display: contents; }
+  .header-icons { order: 1; margin-left: auto; }
+  .header-actions { order: 3; flex: 1 0 100%; }
+  .header-actions .header-btn { flex: 1 1 0; padding-left: 8px; padding-right: 8px; }
   .toolbar { flex-direction: column; }
   .toolbar-left, .toolbar-right { width: 100%; }
   .search-input { max-width: none; }

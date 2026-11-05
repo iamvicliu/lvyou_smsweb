@@ -422,8 +422,8 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .muted { color: var(--text-muted, #94a3b8); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
-.tag.in { background: rgba(16, 185, 129, 0.15); color: #34d399; }
-.tag.out { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+.tag.in { background: var(--success-glow); color: var(--success); }
+.tag.out { background: var(--primary-glow); color: var(--primary); }
 
 /* 列表 / 会话 切换：两个按钮一组，避免和右侧筛选抢位置。 */
 .mode-switch {
