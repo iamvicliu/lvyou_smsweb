@@ -13,26 +13,13 @@
         <SenderSelect :numbers="numbers" :value="sender" @update:value="emit('update:sender', $event)" />
       </div>
       <div class="number-cell">
-        <input
+        <PhoneInput
           :value="toPhone"
-          class="form-input"
-          list="saved-phone-list"
-          inputmode="tel"
+          :phones="savedPhones"
+          list-id="saved-phone-list"
           placeholder="收件人号码，发过一次就会记住"
-          @input="emit('update:toPhone', $event.target.value)"
+          @update:value="emit('update:toPhone', $event)"
         />
-        <div v-if="savedPhones.length" class="saved-row">
-          <span class="saved-label">常用</span>
-          <button
-            v-for="phone in savedPhones.slice(0, 4)"
-            :key="phone"
-            type="button"
-            class="saved-chip"
-            :title="phone + '（右键或长按可移出常用）'"
-            @click="emit('update:toPhone', phone)"
-            @contextmenu.prevent="forgetPhone(phone)"
-          >{{ maskPhone(phone) }}</button>
-        </div>
       </div>
       <button class="btn-send" :disabled="loading || !sender || !toPhone || !content" @click="emit('send')">发送</button>
       <textarea :value="content" class="form-textarea" placeholder="短信内容..." rows="2" @input="emit('update:content', $event.target.value)"></textarea>
@@ -43,26 +30,13 @@
         <SenderSelect :numbers="numbers" :value="sender" @update:value="emit('update:sender', $event)" />
       </div>
       <div class="number-cell">
-        <input
+        <PhoneInput
           :value="dialPhone"
-          class="form-input"
-          list="saved-phone-list"
-          inputmode="tel"
+          :phones="savedPhones"
+          list-id="saved-phone-list"
           placeholder="拨打的号码"
-          @input="emit('update:dialPhone', $event.target.value)"
+          @update:value="emit('update:dialPhone', $event)"
         />
-        <div v-if="savedPhones.length" class="saved-row">
-          <span class="saved-label">常用</span>
-          <button
-            v-for="phone in savedPhones.slice(0, 4)"
-            :key="phone"
-            type="button"
-            class="saved-chip"
-            :title="phone + '（右键或长按可移出常用）'"
-            @click="emit('update:dialPhone', phone)"
-            @contextmenu.prevent="forgetPhone(phone)"
-          >{{ maskPhone(phone) }}</button>
-        </div>
       </div>
       <button class="btn-send" :disabled="loading || !sender || !dialPhone" @click="emit('dial')">拨号</button>
       <textarea :value="ttsText" class="form-textarea" placeholder="TTS内容（可选）..." rows="2" @input="emit('update:ttsText', $event.target.value)"></textarea>
@@ -76,6 +50,7 @@
 
 <script setup>
 import SenderSelect from './SenderSelect.vue'
+import PhoneInput from './PhoneInput.vue'
 import { usePhonebook } from '../composables/usePhonebook'
 
 defineProps({
@@ -102,14 +77,7 @@ const emit = defineEmits([
   'dial'
 ])
 
-const { savedPhones, forgetPhone } = usePhonebook()
-
-// Numbers are personal data: the chips show only the last four digits, the
-// full value stays in the input and the tooltip.
-function maskPhone(phone) {
-  const value = String(phone || '')
-  return value.length > 7 ? `${value.slice(0, 3)}****${value.slice(-4)}` : value
-}
+const { savedPhones } = usePhonebook()
 </script>
 
 <style scoped>
@@ -121,27 +89,28 @@ function maskPhone(phone) {
   align-items: center;
 }
 .sms-section.is-stacked .send-form { grid-template-columns: minmax(0, 1fr); }
-.sms-section.is-stacked .number-cell .form-input { min-width: 0; }
+.sms-section.is-stacked .number-cell .phone-field { min-width: 0; }
+.sms-section.is-stacked .number-cell { flex-direction: column; align-items: stretch; }
 .sms-section.is-stacked .send-form .form-textarea { order: 3; }
 .sms-section.is-stacked .btn-send { order: 4; width: 100%; }
-/* The board picker and its two card buttons need the full rail width stacked;
-   side by side they squeeze both to unreadable ellipses. */
+/* The card field holds a number plus a free-text remark ("…电信抖音卡"), which
+   never fits two-across in a 340px rail: one full-width row per card. */
 .sms-section.is-stacked .sender-picker { flex-direction: column; align-items: stretch; gap: 8px; }
-.sms-section.is-stacked :deep(.slot-chips) { width: 100%; }
-.sms-section.is-stacked :deep(.slot-chip) { flex: 1; min-width: 0; }
-.sms-section.is-stacked :deep(.chip-num) { max-width: 100%; }
+.sms-section.is-stacked :deep(.slot-chips) { width: 100%; flex-direction: column; gap: 6px; }
+.sms-section.is-stacked :deep(.slot-chip) {
+  width: 100%;
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+}
+.sms-section.is-stacked :deep(.chip-name) { flex: none; }
+.sms-section.is-stacked :deep(.chip-num) { flex: 1; min-width: 0; max-width: 100%; }
 .sender-cell { min-width: 0; }
 .number-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.number-cell .form-input { flex: 1; min-width: 170px; padding: 9px 12px; }
-.saved-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-.saved-label { font-size: 11px; color: var(--text-muted); }
-.saved-chip {
-  background: var(--bg-input); border: 1px solid var(--border);
-  color: var(--text-secondary); border-radius: 999px;
-  padding: 3px 9px; font-size: 11px; line-height: 1.4; cursor: pointer;
-  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
-}
-.saved-chip:hover { border-color: var(--primary); color: var(--primary); }
+.number-cell .phone-field { flex: 1; min-width: 170px; }
+.number-cell .form-input { padding: 9px 12px; }
 .btn-send {
   height: 38px;
   padding: 0 22px;

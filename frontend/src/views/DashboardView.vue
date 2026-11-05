@@ -415,7 +415,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.dashboard { padding: 24px; max-width: 1560px; margin: 0 auto; }
+/* Same width as 号码 / 短信 / 通话 pages — the dashboard used to be 1560 and
+   its cards visibly stuck out past every other tab. */
+.dashboard { padding: 24px; max-width: 1440px; margin: 0 auto; }
 
 /* Two columns: stats and the device list on the left, "send" above "receive"
    on the right. Keeping the composer in the rail means it no longer costs a
