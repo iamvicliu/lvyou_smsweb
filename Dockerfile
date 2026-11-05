@@ -56,8 +56,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     iputils-ping \
     procps \
+    tzdata \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && apt-get clean \
+    && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo Asia/Shanghai > /etc/timezone
+
+# Panel clock / log stamps follow Beijing time; SMS and call times are
+# rendered with an explicit CST timezone in the code as well.
+ENV TZ=Asia/Shanghai
 
 # 设置工作目录
 WORKDIR /app

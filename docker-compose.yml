@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     network_mode: host  # 必须使用 host 网络模式才能扫描局域网
     environment:
+      - TZ=Asia/Shanghai
       # 基础配置
       - SERVER_PORT=8000
       - BMUIUSER=admin
