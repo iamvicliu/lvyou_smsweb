@@ -47,7 +47,7 @@ export function numberParts(raw) {
 
 // The board reports SIM state in the same field as the carrier name. States
 // that mean "this card cannot be used" must look different from a carrier.
-const SIM_BAD = ['拒绝', '无卡', '卡异常', '异常', '受限', '未注册', '欠费', '停机', '故障', 'pin', 'puk']
+const SIM_BAD = ['拒绝', '卡异常', '异常', '受限', '未注册', '欠费', '停机', '故障', 'pin', 'puk']
 const SIM_WARN = ['启动', '搜索', '注册中', '初始化', '飞行']
 
 export function simTone(operator) {
@@ -60,7 +60,7 @@ export function simTone(operator) {
 
 export function simToneHint(operator) {
   const tone = simTone(operator)
-  if (tone === 'bad') return '板子报告这张卡当前不可用（拒绝 / 无卡 / 卡异常等）'
+  if (tone === 'bad') return '板子报告这张卡当前不可用（拒绝 / 卡异常 / 停机等）'
   if (tone === 'warn') return '这张卡还在注册网络，稍后再看'
   return ''
 }

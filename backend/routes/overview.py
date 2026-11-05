@@ -16,7 +16,9 @@ router = APIRouter()
 CST = timezone(timedelta(hours=8))
 
 # Mirrors frontend/src/utils/format.js simTone(): a card cannot be used.
-SIM_BAD = ("拒绝", "无卡", "卡异常", "异常", "受限", "未注册", "欠费", "停机", "故障", "pin", "puk")
+# "无卡" is deliberately absent: an empty slot is a normal state (one board may
+# only carry one card), so counting it as abnormal made the KPI cry wolf.
+SIM_BAD = ("拒绝", "卡异常", "异常", "受限", "未注册", "欠费", "停机", "故障", "pin", "puk")
 SIM_WARN = ("启动", "搜索", "注册中", "初始化", "飞行")
 
 
