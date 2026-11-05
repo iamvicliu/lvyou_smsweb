@@ -512,6 +512,17 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
             db.rollback()
     label = device_label(device) if device else (dev_id or source_ip or "unknown")
 
+    if device is not None:
+        # Records are ordered by the board's own timestamps, so a board whose
+        # RTC drifted after a reboot hides its own calls (they sort as if they
+        # happened hours ago). Detect that from the push and correct it.
+        try:
+            from backend import clockguard
+
+            clockguard.maybe_fix(db, device, data.get("msgTs"))
+        except Exception:
+            logger.debug("clock guard hook failed", exc_info=True)
+
     if msg_type in SIM_STATE_EVENTS:
         slot = f"sim{data.get('slot', 1)}"
         idx = _slot_index(slot)
