@@ -27,7 +27,8 @@
               {{ row.direction === 'received' ? '收' : '发' }}
             </span>
             <span class="item-time">{{ shortTime(row.sms_time) }}</span>
-            <span class="item-dev">{{ shortName(row.device_name) }} · 卡{{ String(row.sim_slot || '').slice(-1) === '2' ? 2 : 1 }}</span>
+            <span class="item-dev">{{ shortName(row.device_name) }}</span>
+            <span class="item-sim">{{ simLabel(row.sim_slot, row.sim_number) }}</span>
             <span class="item-num">{{ maskText(row.phone) }}</span>
           </div>
           <SmsContent
@@ -52,7 +53,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import SmsContent from './SmsContent.vue'
 import { fetchSmsHistory } from '../api/endpoints'
-import { maskText } from '../utils/format'
+import { maskText, simLabel } from '../utils/format'
 
 const LIMIT = 8
 // A single SMS is ~70 characters, so it always fits unfolded. Only multipart
@@ -228,6 +229,11 @@ onUnmounted(() => {
 .dir.in { color: var(--success); background: var(--success-glow); }
 .dir.out { color: var(--primary); background: var(--primary-glow); }
 .item-time { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; flex: none; }
+.item-sim {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
 /* Keep the board name readable; when it cannot fit next to the sender
    number, the number wraps to its own line instead of squeezing the name. */
 .item-dev { color: var(--text-secondary); flex: 1 1 auto; min-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

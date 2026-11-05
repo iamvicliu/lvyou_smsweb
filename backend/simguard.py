@@ -540,13 +540,13 @@ def tick() -> None:
 # ── UI snapshot ──────────────────────────────────────────────────────────────
 
 def snapshot() -> Dict[str, Any]:
-    from backend.db import Device, SessionLocal
+    from backend.db import SessionLocal, ordered_devices
 
     db = SessionLocal()
     try:
         on = enabled(db)
         muted = _muted_set(db)
-        rows = db.query(Device).all()
+        rows = ordered_devices(db)
         items = []
         for d in rows:
             key = d.devId or d.ip

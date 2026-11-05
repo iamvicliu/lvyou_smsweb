@@ -104,6 +104,16 @@ class Device(Base):
     created      = Column(String(32),  default="")
 
 
+def device_order():
+    """Canonical board order shared by the dashboard and settings APIs."""
+    return (Device.sort_order.asc(), Device.created.desc(), Device.id.desc())
+
+
+def ordered_devices(db):
+    """Return every board in the same order as the dashboard cards."""
+    return db.query(Device).order_by(*device_order()).all()
+
+
 # FIX(P0#2): persist auth tokens to SQLite so that multiple uvicorn processes
 # (e.g. the v4 and v6 listeners) share the same session store.
 class AuthToken(Base):

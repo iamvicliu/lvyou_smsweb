@@ -511,7 +511,9 @@ def api_recording_answer_config(db: Session = Depends(get_db)):
     from backend.boardparams import ANSWER_MODES, read_params
 
     items = []
-    for device in db.query(Device).order_by(Device.id).all():
+    from backend.db import ordered_devices
+
+    for device in ordered_devices(db):
         item: Dict[str, Any] = {
             "device_id": device.id,
             "devId": device.devId or "",

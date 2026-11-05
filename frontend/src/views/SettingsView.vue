@@ -172,7 +172,7 @@
               <span class="setting-label">范围</span>
               <select v-model="answerDevice" class="cred-input">
                 <option :value="0">全部设备</option>
-                <option v-for="d in devicesStore.devices" :key="d.id" :value="d.id">
+                <option v-for="d in settingsDevices" :key="d.id" :value="d.id">
                   {{ d.alias || d.devId || d.ip }}
                 </option>
               </select>
@@ -203,8 +203,8 @@
             这张卡一旦设置了自动接听，来电会先被板子接走，人在面板上就来不及接；
             想人工接听时到通话页点「改为人工接管」，把这张卡临时切成不接听，之后可一键恢复。
           </p>
-          <div v-if="answerDevices.length" class="answer-list">
-            <div v-for="d in answerDevices" :key="d.device_id" class="answer-row">
+          <div v-if="orderedAnswerDevices.length" class="answer-list">
+            <div v-for="d in orderedAnswerDevices" :key="d.device_id" class="answer-row">
               <span class="answer-name">{{ d.name }}</span>
               <span v-if="d.ok" class="answer-values">
                 卡1 {{ d.slots['1'].mode_label }}（{{ d.slots['1'].ring }}声/{{ d.slots['1'].max_seconds }}秒）
@@ -238,8 +238,8 @@
               <span>{{ guardEnabled ? '已开启' : '已关闭' }}</span>
             </button>
           </div>
-          <div v-if="guardItems.length" class="answer-list">
-            <div v-for="g in guardItems" :key="g.device_id" class="answer-row">
+          <div v-if="orderedGuardItems.length" class="answer-list">
+            <div v-for="g in orderedGuardItems" :key="g.device_id" class="answer-row">
               <span class="answer-name">{{ g.name }}</span>
               <span class="answer-values">{{ guardLine(g) }}</span>
               <button class="theme-toggle" :disabled="guardBusy" @click="toggleGuardMute(g)">
@@ -268,7 +268,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import { useAuthStore, useDevicesStore } from '../stores'
@@ -276,6 +276,7 @@ import { useTheme } from '../composables/useTheme'
 import { useDeviceActions } from '../composables/useDeviceActions'
 import {
   fetchAnswerConfig,
+  fetchDevicesPage,
   fetchRecordingConfig,
   fetchNotifySettings,
   fetchNotifyHealth,
@@ -294,6 +295,7 @@ import {
 const router = useRouter()
 const authStore = useAuthStore()
 const devicesStore = useDevicesStore()
+const settingsDevices = ref([])
 
 const { isDark, toggleTheme } = useTheme()
 const { refresh, startScanAdd } = useDeviceActions()
@@ -359,6 +361,38 @@ const guardItems = ref([])
 const guardBusy = ref(false)
 const guardStatus = ref('')
 const guardError = ref(false)
+
+const settingDeviceOrder = computed(() => {
+  const order = new Map()
+  settingsDevices.value.forEach((device, index) => order.set(device.id, index))
+  return order
+})
+
+function inSettingsOrder(rows) {
+  return [...(rows || [])].sort((a, b) => {
+    const ai = settingDeviceOrder.value.get(a.device_id)
+    const bi = settingDeviceOrder.value.get(b.device_id)
+    if (ai == null && bi == null) return 0
+    if (ai == null) return 1
+    if (bi == null) return -1
+    return ai - bi
+  })
+}
+
+const orderedAnswerDevices = computed(() => inSettingsOrder(answerDevices.value))
+const orderedGuardItems = computed(() => inSettingsOrder(guardItems.value))
+
+async function loadSettingsDevices() {
+  // Settings must show the full fleet in dashboard order. Reusing the
+  // dashboard store here leaked its search/group filter into these selectors
+  // and could hide boards that were filtered out on the previous page.
+  try {
+    const data = await fetchDevicesPage({ page: 1, pageSize: 1000, q: '', group: '' })
+    settingsDevices.value = data.items || []
+  } catch {
+    settingsDevices.value = []
+  }
+}
 
 function guardLine(g) {
   const parts = []
@@ -456,7 +490,7 @@ async function loadRecordingConfig() {
 
 async function applyRecordingUrls() {
   if (recBusy.value) return
-  const ids = (devicesStore.devices || []).map(d => d.id)
+  const ids = settingsDevices.value.map(d => d.id)
   if (!ids.length) {
     recStatus.value = '没有设备'
     recError.value = true
@@ -521,7 +555,7 @@ async function applyAnswerMode() {
   if (answerBusy.value) return
   const ids = answerDevice.value
     ? [answerDevice.value]
-    : (devicesStore.devices || []).map(d => d.id)
+    : settingsDevices.value.map(d => d.id)
   if (!ids.length) {
     answerStatus.value = '没有设备'
     answerError.value = true
@@ -672,6 +706,7 @@ async function reloadSettings() {
       loadPushStats(),
       loadRecordingConfig(),
       loadGuard(),
+      loadSettingsDevices(),
       devicesStore.refresh(),
     ])
     await loadAnswerConfig()
@@ -697,6 +732,7 @@ onMounted(async () => {
     loadPushStats(),
     loadRecordingConfig(),
     loadGuard(),
+    loadSettingsDevices(),
     devicesStore.refresh(),
   ])
   loadAnswerConfig()

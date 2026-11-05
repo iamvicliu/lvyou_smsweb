@@ -17,7 +17,7 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from backend.config import BATCH_MAX, OTA_BATCH_MAX, SMS_MAX_LEN, TIMEOUT
-from backend.db import Device, SessionLocal, SmsJob, get_db, nowts
+from backend.db import Device, SessionLocal, SmsJob, device_order, get_db, nowts, ordered_devices
 from backend.settings_store import device_credential
 from backend.security import is_device_ip_allowed as _is_device_ip_allowed
 from backend.security import panel_base_url_for
@@ -335,9 +335,7 @@ def apidevices(
     db: Session = Depends(get_db),
 ):
     from backend.main import _apply_devices_filter
-    query = db.query(Device).order_by(
-        Device.sort_order.asc(), Device.created.desc(), Device.id.desc()
-    )
+    query = db.query(Device).order_by(*device_order())
     query = _apply_devices_filter(query, q, group)
     total = query.count()
     online = query.filter(Device.status == "online").count()
@@ -398,11 +396,7 @@ def apidevices(
 
 
 def _ordered_devices(db: Session) -> List[Device]:
-    return (
-        db.query(Device)
-        .order_by(Device.sort_order.asc(), Device.created.desc(), Device.id.desc())
-        .all()
-    )
+    return ordered_devices(db)
 
 
 def _renumber(db: Session, devices: List[Device]) -> None:
