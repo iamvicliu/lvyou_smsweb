@@ -55,8 +55,16 @@ engine = create_engine(
 def _set_sqlite_pragmas(dbapi_connection, _connection_record):
     cursor = dbapi_connection.cursor()
     try:
-        cursor.execute("PRAGMA journal_mode=WAL")
+        # busy_timeout first: switching a second connection to WAL while the
+        # first one is still booting raised "database is locked" and killed
+        # the v6 worker at startup, before any timeout was in place.
         cursor.execute("PRAGMA busy_timeout=5000")
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            # WAL is persistent in the file header, so the other process has
+            # already done it; a lost race here must not abort startup.
+            pass
         cursor.execute("PRAGMA synchronous=NORMAL")
     finally:
         cursor.close()
@@ -299,7 +307,16 @@ def run_migrations() -> None:
             rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
             cols = [r[1] for r in rows]
             if col not in cols:
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}"))
+                try:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}"))
+                except OperationalError as exc:
+                    # The container starts a v4 and a v6 uvicorn process, and
+                    # both import this module at the same instant. The PRAGMA
+                    # check above is not atomic with the ALTER, so the loser
+                    # of that race used to abort the whole process. A column
+                    # that already exists is exactly the desired end state.
+                    if "duplicate column name" not in str(exc).lower():
+                        raise
         conn.execute(text("UPDATE devices SET mac = NULL WHERE mac = ''"))
         conn.execute(text(
             "UPDATE sms_records SET event_ts = sms_ts "
