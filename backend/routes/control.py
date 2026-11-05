@@ -638,13 +638,39 @@ def _event_type(raw_json: str) -> int:
         return 0
 
 
+def _active_since(raw_json: str, fallback: int) -> int:
+    """Board-reported moment the current call state started.
+
+    An answered call is timed from ``telConnectedTs``; ring/dial states fall
+    back to ``telStartTs``. Falling back to the row timestamp keeps records
+    without a usable payload on the old behaviour.
+    """
+    try:
+        raw = json.loads(raw_json or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return int(fallback or 0)
+    for key in ("telConnectedTs", "telStartTs", "telOutBoundRingTs"):
+        try:
+            value = int(raw.get(key) or 0)
+        except (TypeError, ValueError):
+            value = 0
+        if value:
+            return value
+    return int(fallback or 0)
+
+
 @router.get("/api/tel/live")
 def api_tel_live(db: Session = Depends(get_db)):
-    """Calls whose latest push is ring/answer, scoped to the last six minutes.
+    """Calls whose latest push is ring/answer, still inside their plausible life.
 
     Board calls are capped at 175 seconds, so a much wider window would only
-    surface stale rows from builds that missed the final 603/623 push.
+    surface stale rows from builds that missed the final 603/623 push. Firmware
+    does occasionally drop that final push -- the caller hangs up, the board
+    keeps the line in its push state and the panel used to show "通话中" for the
+    whole six-minute query window. Each state therefore gets its own age limit
+    measured from the timestamp the board itself reported.
     """
+    now = int(time.time())
     cutoff = int(time.time()) - 360
     rows = (
         db.query(CallRecord)
@@ -657,6 +683,9 @@ def api_tel_live(db: Session = Depends(get_db)):
     # where the far end rings but there is nothing to pick up on the board.
     active_types = {601: "ringing", 602: "answered", 620: "dialing",
                     621: "dialing", 622: "answered"}
+    # Ringing dies out after ~60s on every carrier; a connected call cannot
+    # outlive the 175s board cap.
+    max_age = {"ringing": 90, "dialing": 90, "answered": 200}
     seen = set()
     items = []
     for row in rows:
@@ -667,6 +696,8 @@ def api_tel_live(db: Session = Depends(get_db)):
         event = _event_type(row.raw_json or "")
         state = active_types.get(event)
         if not state:
+            continue
+        if now - _active_since(row.raw_json or "", row.start_ts) > max_age[state]:
             continue
         device = db.query(Device).filter(Device.id == row.device_id).first()
         items.append({
@@ -680,6 +711,6 @@ def api_tel_live(db: Session = Depends(get_db)):
             "event_type": event,
             "start_ts": row.start_ts,
             "call_time": row.call_time,
-            "elapsed": max(0, int(time.time()) - int(row.start_ts or 0)),
+            "elapsed": max(0, now - int(row.start_ts or 0)),
         })
     return {"items": items, "server_ts": int(time.time())}

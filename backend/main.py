@@ -518,6 +518,10 @@ _SPA_PATHS = {
     "/calls",
 }
 _PUBLIC_PATHS = {"/", "/api/login", "/api/health", "/webhook"} | _SPA_PATHS
+# Browser chrome assets: the tab icon and the iOS home-screen icon are fetched
+# without credentials, before (or instead of) any login round-trip.
+_PUBLIC_PATHS |= {"/favicon.svg", "/favicon.ico", "/apple-touch-icon.png",
+                  "/manifest.webmanifest"}
 
 # FIX(P2#1): methods that mutate state and therefore must carry a valid
 # X-CSRF-Token header when the caller authenticated via a cookie. Bearer-
@@ -726,6 +730,24 @@ app.mount("/static", SPAStaticFiles(directory=STATICDIR), name="static")
 @app.get("/")
 def uiindex():
     return _index_response()
+
+
+_ICON_HEADERS = {"Cache-Control": "public, max-age=86400"}
+
+
+@app.get("/favicon.svg", include_in_schema=False)
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+def favicon():
+    """Serve the tab icon straight from the build output.
+
+    The icon lives next to index.html instead of under /static/, so it needs
+    its own route; StaticFiles only covers the /static mount.
+    """
+    path = os.path.join(STATICDIR, "favicon.svg")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="icon not built")
+    return FileResponse(path, media_type="image/svg+xml", headers=_ICON_HEADERS)
 
 
 # Network-level helpers (SSRF allowlist, ARP table, prewarm, TCP probe,
