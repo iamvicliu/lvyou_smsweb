@@ -11,30 +11,18 @@
       @open-settings="$router.push('/settings')"
     />
 
-    <StatsGrid
-      :online="onlineCount"
-      :offline="offlineCount"
-      :total="devicesStore.devicesTotal"
-      :sim-count="devicesStore.numbersTotal"
-      :sim-bad="overview.sims ? overview.sims.bad : 0"
-      :today-in="overview.today ? overview.today.sms_in : 0"
-      :today-out="overview.today ? overview.today.sms_out : 0"
-    />
-
-    <MessagePanel
-      v-model:mode="commMode"
-      v-model:sender="fromSelected"
-      v-model:to-phone="toPhone"
-      v-model:content="content"
-      v-model:dial-phone="dialPhone"
-      v-model:tts-text="ttsText"
-      :numbers="allNumbers"
-      :loading="loading"
-      @send="send"
-      @dial="dial"
-    />
-
     <div class="dash-split">
+      <div class="dash-main">
+        <StatsGrid
+          :online="onlineCount"
+          :offline="offlineCount"
+          :total="devicesStore.devicesTotal"
+          :sim-count="devicesStore.numbersTotal"
+          :sim-bad="overview.sims ? overview.sims.bad : 0"
+          :today-in="overview.today ? overview.today.sms_in : 0"
+          :today-out="overview.today ? overview.today.sms_out : 0"
+        />
+
     <section class="device-panel">
       <div class="panel-head">
         <div class="panel-tabs">
@@ -97,8 +85,24 @@
         @change="devicesStore.setDevicesPage"
       />
     </section>
+      </div>
 
-      <LiveSmsFeed class="feed-rail" />
+      <aside class="dash-rail">
+        <MessagePanel
+          stacked
+          v-model:mode="commMode"
+          v-model:sender="fromSelected"
+          v-model:to-phone="toPhone"
+          v-model:content="content"
+          v-model:dial-phone="dialPhone"
+          v-model:tts-text="ttsText"
+          :numbers="allNumbers"
+          :loading="loading"
+          @send="send"
+          @dial="dial"
+        />
+        <LiveSmsFeed class="feed-rail" />
+      </aside>
     </div>
 
     <WifiModal
@@ -413,32 +417,50 @@ onUnmounted(() => {
 <style scoped>
 .dashboard { padding: 24px; max-width: 1560px; margin: 0 auto; }
 
-/* Device cards and the live feed share one row on desktop. The rail is sticky
-   so new messages stay in view while the card list scrolls under it. */
+/* Two columns: stats and the device list on the left, "send" above "receive"
+   on the right. Keeping the composer in the rail means it no longer costs a
+   full-width row of page height. */
 .dash-split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 16px;
   align-items: start;
 }
-.feed-rail {
+.dash-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.dash-main :deep(.stats-bar) { margin-bottom: 0; }
+.dash-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
   position: sticky;
   top: 16px;
   max-height: calc(100vh - 32px);
 }
+/* The feed takes whatever height the send box leaves and scrolls inside it. */
+.dash-rail .feed-rail { flex: 1 1 auto; min-height: 180px; }
 
 /* Narrow laptops keep the rail but drop to two card columns; three columns in
    that width made the SIM rows wrap. */
 @media (max-width: 1359px) {
-  .dash-split { grid-template-columns: minmax(0, 1fr) 270px; }
+  .dash-split { grid-template-columns: minmax(0, 1fr) 320px; }
   .dash-split :deep(.cards-grid) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Phones and tablets stack: the rail would leave the cards unreadably thin,
-   and it moves above the card list so it is not buried under five boards. */
+/* Phones and tablets stack. The main column dissolves so its two blocks can
+   sit on either side of the rail: stats, then send + feed, then the boards. */
 @media (max-width: 1023px) {
   .dash-split { display: flex; flex-direction: column; }
+  .dash-main { display: contents; }
+  .dash-split :deep(.stats-bar) { order: 1; }
+  .dash-rail { order: 2; position: static; max-height: none; }
+  .device-panel { order: 3; }
   .dash-split :deep(.cards-grid) { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
-  .feed-rail { position: static; order: -1; max-height: 420px; }
+  .dash-rail .feed-rail { max-height: 420px; flex: 0 0 auto; }
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="sms-section">
+  <div :class="['sms-section', { 'is-stacked': stacked }]">
     <div class="section-header">
       <h2>消息发送</h2>
       <div class="mode-tabs">
@@ -86,7 +86,9 @@ defineProps({
   content: { type: String, default: '' },
   dialPhone: { type: String, default: '' },
   ttsText: { type: String, default: '' },
-  loading: { type: Boolean, default: false }
+  loading: { type: Boolean, default: false },
+  // Right-column variant: the form stacks instead of running three across.
+  stacked: { type: Boolean, default: false }
 })
 
 const emit = defineEmits([
@@ -118,6 +120,16 @@ function maskPhone(phone) {
   gap: 8px;
   align-items: center;
 }
+.sms-section.is-stacked .send-form { grid-template-columns: minmax(0, 1fr); }
+.sms-section.is-stacked .number-cell .form-input { min-width: 0; }
+.sms-section.is-stacked .send-form .form-textarea { order: 3; }
+.sms-section.is-stacked .btn-send { order: 4; width: 100%; }
+/* The board picker and its two card buttons need the full rail width stacked;
+   side by side they squeeze both to unreadable ellipses. */
+.sms-section.is-stacked .sender-picker { flex-direction: column; align-items: stretch; gap: 8px; }
+.sms-section.is-stacked :deep(.slot-chips) { width: 100%; }
+.sms-section.is-stacked :deep(.slot-chip) { flex: 1; min-width: 0; }
+.sms-section.is-stacked :deep(.chip-num) { max-width: 100%; }
 .sender-cell { min-width: 0; }
 .number-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .number-cell .form-input { flex: 1; min-width: 170px; padding: 9px 12px; }
