@@ -5,7 +5,7 @@
       :scanning="scanning"
       :is-dark="isDark"
       @scan="startScanAdd"
-      @refresh="refresh"
+      @refresh="refreshAll"
       @logout="handleLogout"
       @toggle-theme="toggleTheme"
       @open-settings="$router.push('/settings')"
@@ -193,7 +193,8 @@ import {
   batchBoardPassword,
   batchControlSlots,
   setupDevicePush,
-  fetchOverview
+  fetchOverview,
+  fetchDeviceHealth
 } from '../api/endpoints'
 
 // Silent device-list refresh: SIM insert/remove arrives as a webhook, so the
@@ -207,6 +208,26 @@ async function loadOverview() {
   } catch {
     // A failed overview must not blank the device grid; the old numbers stay.
   }
+}
+
+// 手动刷新时顺带读一次每块板子的 stat，让卡片的开机时长/内存立刻有值。
+// 这是用户点按钮触发的单次诊断，不是定时轮询（厂商文档禁止轮询）。
+async function refreshAll() {
+  await refresh()
+  const list = (devices.value || []).slice()
+  const queue = list.concat()
+  const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+    while (queue.length) {
+      const d = queue.shift()
+      try {
+        await fetchDeviceHealth(d.id)
+      } catch {
+        // 单块板子读不到不影响其它板子和列表刷新
+      }
+    }
+  })
+  await Promise.all(workers)
+  if (list.length) await devicesStore.refresh({ silent: true })
 }
 
 const router = useRouter()
@@ -383,7 +404,7 @@ const shortcuts = {
   'Ctrl+K': () => document.querySelector('.search-input')?.focus(),
   'Space': () => { if (document.activeElement.tagName !== 'INPUT') toggleSelectAll() },
   'Delete': () => { if (selectedCount.value > 0) batchDeleteSelected() },
-  'r': () => { if (document.activeElement.tagName !== 'INPUT') refresh() }
+  'r': () => { if (document.activeElement.tagName !== 'INPUT') refreshAll() }
 }
 useKeyboardShortcuts(shortcuts)
 

@@ -331,8 +331,22 @@ def apidevices(
     total = query.count()
     online = query.filter(Device.status == "online").count()
     items = query.offset((page - 1) * page_size).limit(page_size).all()
+    payload = [_device_to_dict(d) for d in items]
+    # Link health and the last `stat` reading are stored per board, so the
+    # dashboard can say "panel link is bad, board is fine" without polling.
+    try:
+        from backend import linkhealth
+
+        for device, row in zip(items, payload):
+            key = linkhealth.device_key(device)
+            row["link_health"] = linkhealth.for_device(db, key)
+            row["runtime_health"] = linkhealth.cached_health(db, key)
+    except Exception:
+        for row in payload:
+            row.setdefault("link_health", {})
+            row.setdefault("runtime_health", {})
     return {
-        "items": [_device_to_dict(d) for d in items],
+        "items": payload,
         "total": total,
         "online_count": online,
         "offline_count": max(total - online, 0),
@@ -467,6 +481,15 @@ def api_device_detail(devid: int, db: Session = Depends(get_db)):
     payload["sim2number"] = device.sim2number or ""
     payload["sim2operator"] = device.sim2operator or ""
     payload["sim2signal"] = device.sim2signal or 0
+    try:
+        from backend import linkhealth
+
+        key = linkhealth.device_key(device)
+        payload["link_health"] = linkhealth.for_device(db, key)
+        payload["runtime_health"] = linkhealth.cached_health(db, key)
+    except Exception:
+        payload["link_health"] = {}
+        payload["runtime_health"] = {}
     user, pw = device_credential(device)
     sig_data = getdevicedata(device.ip, user, pw) or {}
     payload["wifiName"] = sig_data.get("WIFI_NAME", "")

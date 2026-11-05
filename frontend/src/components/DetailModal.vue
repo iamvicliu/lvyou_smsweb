@@ -96,6 +96,10 @@
               <b>{{ health.daily_restart_enabled ? health.daily_restart_hour + ':00 前后' : '已关闭' }}</b>
             </div>
             <div class="stat"><span>信号 / 卡槽</span><b>{{ onlineSlotsText }}</b></div>
+            <div class="stat">
+              <span>面板链路</span>
+              <b :title="linkView(device.link_health).hint">{{ linkView(device.link_health).label }}</b>
+            </div>
           </div>
           <p v-else class="hint">{{ healthLoading ? '正在读取一次状态…' : '还没读取状态，点上方「刷新状态」。' }}</p>
         </section>
@@ -173,7 +177,7 @@ import {
   rebootDevice,
   saveDailyRestart
 } from '../api/endpoints'
-import { groupLabel, operatorLabel, simTone, simToneHint } from '../utils/format'
+import { groupLabel, linkView, operatorLabel, simTone, simToneHint } from '../utils/format'
 
 const props = defineProps({
   detail: { type: Object, required: true },

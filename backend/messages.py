@@ -566,6 +566,16 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
         # PING: the only job is to prove the board is alive. lastSeen and
         # status were already refreshed above, so this path stays cheap — it
         # runs every ~110 s per board and is the primary online signal.
+        # The counter and arrival time also feed the link-health record, which
+        # is how the dashboard tells "board is fine, panel link is bad" apart.
+        try:
+            from backend import linkhealth
+
+            key = linkhealth.device_key(device) if device is not None else (dev_id or source_ip)
+            if key:
+                linkhealth.note_ping(db, key, data)
+        except Exception:
+            logger.debug("link health hook failed", exc_info=True)
         return {"status": "ok", "type": 998}
 
     if msg_type in (501, 502):

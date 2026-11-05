@@ -70,3 +70,69 @@ export function groupLabel(grp) {
   if (!g || g.toLowerCase() === 'auto') return '未分组'
   return g
 }
+
+// ── 链路与运行指标 ─────────────────────────────────────────────────────────
+// 998 心跳是唯一允许的持续信号（厂商文档禁止定时 stat）。这里只做展示，
+// 判断逻辑在 backend/linkhealth.py，阈值同样来自厂商的 3×间隔+15 秒。
+export function agoText(seconds) {
+  const s = Number(seconds)
+  if (!Number.isFinite(s) || s < 0) return ''
+  if (s < 60) return '刚刚'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m} 分钟前`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} 小时前`
+  return `${Math.floor(h / 24)} 天前`
+}
+
+export function linkView(link) {
+  const h = link || {}
+  const status = h.status || 'unknown'
+  const ago = agoText(h.age)
+  const interval = Number(h.interval) || 110
+  if (status === 'ok') {
+    return {
+      tone: 'ok',
+      label: `链路正常${ago ? ' · ' + ago : ''}`,
+      hint: `板子到面板这一段正常，最近一次心跳 ${ago || '刚刚'}（约每 ${interval} 秒一次）`
+    }
+  }
+  if (status === 'late') {
+    return {
+      tone: 'late',
+      label: `链路延迟${ago ? ' · ' + ago : ''}`,
+      hint: `心跳比平时慢：板子可能卡顿或网络不稳。正常间隔约 ${interval} 秒`
+    }
+  }
+  if (status === 'down') {
+    return {
+      tone: 'down',
+      label: `链路中断${ago ? ' · ' + ago : ''}`,
+      hint: `超过 ${h.threshold || 345} 秒没有心跳：板子掉线，或它连不上面板（短信进不来通常是这个原因）`
+    }
+  }
+  return {
+    tone: 'unknown',
+    label: '暂无心跳',
+    hint: '面板还没收到这块板子的 998 心跳。点右上角「刷新数据」会读一次运行信息'
+  }
+}
+
+// uptime 的单位是分钟，和 stat 返回的字段一致。
+export function uptimeShort(minutes) {
+  const m = Number(minutes)
+  if (!Number.isFinite(m) || m < 0) return ''
+  if (m < 60) return `${m} 分钟`
+  const d = Math.floor(m / 1440)
+  const h = Math.floor((m % 1440) / 60)
+  if (d) return `${d} 天 ${h} 小时`
+  return `${h} 小时`
+}
+
+export function memoryTone(value) {
+  const v = Number(value)
+  if (!Number.isFinite(v) || v < 0) return ''
+  if (v < 20) return 'bad'
+  if (v < 40) return 'warn'
+  return ''
+}

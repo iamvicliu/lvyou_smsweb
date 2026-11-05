@@ -182,6 +182,14 @@ def api_device_health(device_id: int, db: Session = Depends(get_db)):
         }
     health = _health_from_stat(device, response)
     health["ok"] = True
+    # Remember the reading so the device list can show uptime/memory without
+    # calling the board again (scheduled stat polling is forbidden).
+    try:
+        from backend import linkhealth
+
+        linkhealth.cache_health(db, linkhealth.device_key(device), health)
+    except Exception:
+        logger.debug("health cache failed device=%s", device.id, exc_info=True)
     return health
 
 

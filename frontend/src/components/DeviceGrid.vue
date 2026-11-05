@@ -4,7 +4,19 @@ import { storeToRefs } from 'pinia'
 import { useDevicesStore, useScanStore } from '../stores'
 import { useDeviceActions } from '../composables/useDeviceActions'
 import { useDetail } from '../composables/useDetail'
-import { displayName, groupLabel, maskText, operatorLabel, prettyTime, simTone, simToneHint } from '../utils/format'
+import {
+  agoText,
+  displayName,
+  groupLabel,
+  linkView,
+  maskText,
+  memoryTone,
+  operatorLabel,
+  prettyTime,
+  simTone,
+  simToneHint,
+  uptimeShort
+} from '../utils/format'
 
 const props = defineProps({
   devices: { type: Array, default: () => [] },
@@ -73,6 +85,22 @@ function dropClass(id) {
   if (!t || t.id !== id) return ''
   return t.after ? 'drop-after' : 'drop-before'
 }
+
+// 卡片上只放一行：链路结论 + 开机时长 + 剩余内存。数据来自面板已经收到的
+// 998 心跳和最近一次 stat，不会为了这个去访问板子。
+function runtimeText(health) {
+  const h = health || {}
+  const parts = []
+  if (h.uptime >= 0 && h.uptime !== undefined) parts.push('开机 ' + uptimeShort(h.uptime))
+  if (h.memory >= 0 && h.memory !== undefined) parts.push('内存 ' + h.memory + '%')
+  return parts.join(' · ')
+}
+
+function runtimeHint(health) {
+  const h = health || {}
+  if (!h.at) return '还没有读取过运行信息；打开详情或点「刷新数据」会读一次'
+  return `最近一次读取在 ${agoText(h.age)}，来自板子的 stat 状态`
+}
 </script>
 
 <template>
@@ -120,6 +148,20 @@ function dropClass(id) {
         <div class="device-name">{{ displayName(d) }}</div>
         <div class="device-ip">{{ d.ip }}</div>
         <div class="device-mac">{{ d.mac || '-' }}</div>
+
+        <div class="link-row">
+          <span
+            class="link-chip"
+            :class="linkView(d.link_health).tone"
+            :title="linkView(d.link_health).hint"
+          >{{ linkView(d.link_health).label }}</span>
+          <span
+            v-if="runtimeText(d.runtime_health)"
+            class="runtime-text"
+            :class="memoryTone((d.runtime_health || {}).memory)"
+            :title="runtimeHint(d.runtime_health)"
+          >{{ runtimeText(d.runtime_health) }}</span>
+        </div>
 
         <div
           v-if="(d.sims && d.sims.sim1 && (d.sims.sim1.number || d.sims.sim1.operator)) || (d.sims && d.sims.sim2 && (d.sims.sim2.number || d.sims.sim2.operator))"
@@ -200,4 +242,44 @@ function dropClass(id) {
 /* Touch devices cannot drag HTML5 cards, so they get arrows instead. */
 .touch-sort { display: none; }
 @media (hover: none) { .touch-sort { display: inline-flex; } }
+
+/* 一行元数据：链路状态用点 + 文字，运行指标跟在后面。 */
+.link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -6px 0 10px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.link-chip::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+.link-chip.ok { color: var(--success); }
+.link-chip.ok::before { background: var(--success); }
+.link-chip.late { color: var(--warning); }
+.link-chip.late::before { background: var(--warning); }
+.link-chip.down { color: var(--danger); }
+.link-chip.down::before { background: var(--danger); }
+.runtime-text {
+  color: var(--text-muted);
+  white-space: nowrap;
+  border-left: 1px solid var(--border);
+  padding-left: 8px;
+}
+.runtime-text.warn { color: var(--warning); }
+.runtime-text.bad { color: var(--danger); }
 </style>
