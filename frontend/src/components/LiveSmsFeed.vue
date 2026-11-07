@@ -3,8 +3,17 @@
     <div class="feed-head">
       <h2>实时短信</h2>
       <span class="live-dot" :class="{ idle: !loaded }"></span>
-      <span class="live-text">{{ loaded ? '10 秒自动刷新' : '读取中…' }}</span>
-      <button class="feed-link" title="打开短信记录页" @click="goAll">全部 →</button>
+      <span class="live-text">{{ headText }}</span>
+      <div class="feed-tools">
+        <button
+          class="feed-refresh"
+          :class="{ spinning: refreshing }"
+          :disabled="refreshing"
+          title="立即从面板数据库重新读取最新短信"
+          @click="manualRefresh"
+        >刷新</button>
+        <button class="feed-link" title="打开短信记录页" @click="goAll">全部 →</button>
+      </div>
     </div>
 
     <div class="feed-list" :class="{ empty: !items.length }">
@@ -52,7 +61,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import SmsContent from './SmsContent.vue'
 import { fetchSmsHistory } from '../api/endpoints'
@@ -74,6 +83,14 @@ const loaded = ref(false)
 const error = ref(false)
 const openId = ref(0)
 const freshIds = ref(new Set())
+const refreshing = ref(false)
+const justRefreshed = ref(false)
+
+const headText = computed(() => {
+  if (refreshing.value) return '刷新中…'
+  if (justRefreshed.value) return '刚刚已刷新'
+  return loaded.value ? '10 秒自动刷新' : '读取中…'
+})
 
 let timer = null
 let firstLoad = true
@@ -135,6 +152,20 @@ async function load() {
   }
 }
 
+// The timer covers the normal case; this button is for "I just sent one, show
+// it now" without waiting for the next 10-second tick.
+async function manualRefresh() {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    await load()
+    justRefreshed.value = true
+    setTimeout(() => { justRefreshed.value = false }, 2000)
+  } finally {
+    refreshing.value = false
+  }
+}
+
 function goAll() {
   router.push('/messages')
 }
@@ -193,6 +224,24 @@ onUnmounted(() => {
   cursor: pointer;
   padding: 2px 0;
 }
+.feed-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.feed-tools .feed-link { margin-left: 0; }
+.feed-refresh {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.feed-refresh:hover { color: var(--primary); }
+.feed-refresh:disabled { opacity: 0.55; cursor: default; }
+.feed-refresh.spinning { color: var(--primary); }
 .feed-link:hover { color: var(--primary-dark); text-decoration: underline; }
 .feed-list {
   display: flex;

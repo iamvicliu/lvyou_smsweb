@@ -418,6 +418,33 @@ class AnswerModeReq(BaseModel):
     mode: int
 
 
+class AutoRecordReq(BaseModel):
+    enabled: bool = True
+    seconds: int = 60
+    upload: bool = True
+
+
+@router.get("/api/settings/auto-record")
+def api_auto_record_get(db: Session = Depends(get_db)):
+    """Panel-side answer + recording length (the board caps its own at 15 s)."""
+    from backend import autorecord
+
+    return {"ok": True, **autorecord.read_settings(db)}
+
+
+@router.post("/api/settings/auto-record")
+def api_auto_record_set(req: AutoRecordReq, db: Session = Depends(get_db)):
+    from backend import autorecord
+
+    if not 1 <= req.seconds <= autorecord.MAX_SECONDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"录音时长需在 1-{autorecord.MAX_SECONDS} 秒之间",
+        )
+    cfg = autorecord.write_settings(db, req.enabled, req.seconds, req.upload)
+    return {"ok": True, **cfg}
+
+
 # Remembered per board+slot so "hand it back to the board" is one click. The
 # value is the auto-answer mode the operator had before switching to manual.
 ANSWER_PREV_KEY = "answer_prev:{device_id}:{slot}"

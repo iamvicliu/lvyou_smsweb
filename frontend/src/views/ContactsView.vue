@@ -246,12 +246,13 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.contacts-view { padding: 24px; max-width: 1440px; margin: 0 auto; }
 .contacts-panel { padding-bottom: 18px; }
 .contact-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 12px;
-  padding: 4px 18px 8px;
+  padding: 2px 0 8px;
 }
 .contact-card {
   display: flex;
@@ -341,6 +342,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-top: auto;
   padding-top: 8px;
   border-top: 1px solid var(--border);
 }
@@ -348,7 +350,8 @@ onMounted(async () => {
 .contact-actions .mini { padding: 4px 10px; font-size: 12px; }
 .contact-actions .danger { color: var(--danger); }
 .contact-actions .danger:hover { border-color: var(--danger); }
-@media (max-width: 720px) {
-  .contact-grid { grid-template-columns: 1fr; padding: 4px 12px 8px; }
+@media (max-width: 640px) {
+  .contacts-view { padding: 14px; }
+  .contact-grid { grid-template-columns: 1fr; padding: 2px 0 8px; }
 }
 </style>

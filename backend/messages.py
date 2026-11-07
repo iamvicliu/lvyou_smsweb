@@ -954,6 +954,20 @@ def ingest_push(db: Session, data: Dict[str, Any], source_ip: str = "") -> Dict[
                 detail="响铃中" if msg_type == 601 else "正在呼叫",
                 db=db, sim_number=sim_number,
             )
+        if msg_type == 601 and device is not None:
+            # The board's own "接听并录音" records a fixed 15 s (its internal
+            # telanswer never sets p8). Answer the ring from here first so the
+            # recording can run up to 60 s; the board's timer stays as fallback.
+            from backend import autorecord
+
+            try:
+                slot_no = int(data.get("slot") or 1)
+            except (TypeError, ValueError):
+                slot_no = 1
+            # A push without either timestamp would otherwise share one claim
+            # key and swallow the next real call for two minutes.
+            claim_key = int(start or event_ts or time.time())
+            _run_async(autorecord.answer_ring, device.id, slot_no, claim_key)
         elif msg_type == 603 and action == "missed" and prev_action != "missed":
             _notify_call(label, slot, phone, title="未接来电", detail="没有接听",
                          db=db, sim_number=sim_number)

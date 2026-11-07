@@ -314,6 +314,14 @@ export function saveAnswerConfig(payload) {
   return api.post('/api/recordings/answer', payload)
 }
 
+export function fetchAutoRecord() {
+  return api.get('/api/settings/auto-record')
+}
+
+export function saveAutoRecord(payload) {
+  return api.post('/api/settings/auto-record', payload)
+}
+
 // ── board health / operational controls ─────────────────────────────────────
 export function fetchDeviceHealth(deviceId) {
   return api.get('/api/devices/' + deviceId + '/health').then(r => r.data)

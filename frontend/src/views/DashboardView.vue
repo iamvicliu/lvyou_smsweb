@@ -11,6 +11,8 @@
       @open-settings="$router.push('/settings')"
     />
 
+    <HomeCallAlert />
+
     <div class="dash-split">
       <div class="dash-main">
         <StatsGrid
@@ -170,6 +172,7 @@ import MessagePanel from '../components/MessagePanel.vue'
 import DeviceGrid from '../components/DeviceGrid.vue'
 import Pagination from '../components/Pagination.vue'
 import LiveSmsFeed from '../components/LiveSmsFeed.vue'
+import HomeCallAlert from '../components/HomeCallAlert.vue'
 import WifiModal from '../components/WifiModal.vue'
 import OtaModal from '../components/OtaModal.vue'
 import DetailModal from '../components/DetailModal.vue'

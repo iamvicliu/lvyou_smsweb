@@ -162,8 +162,9 @@
             <div class="setting-info">
               <span class="setting-label">自动接听 / 录音模式</span>
               <span class="setting-desc">
-                录音只在“接听并录音”模式下产生；板子会在通话结束后自动上传。
-                建议最大通话时长不超过 15 秒，过长时板子可能来不及上传。
+                板子自带的“接听并录音”只录固定 15 秒，管理页没有可改的地方。
+                这里的“最长秒数”控制整通电话多久自动挂断，不决定录音长度；
+                要录更长，用下面那张“来电录音时长（面板接管）”。
               </span>
             </div>
           </div>
@@ -218,6 +219,57 @@
               <span>读取板子当前设置</span>
             </button>
             <span class="cred-state" :class="{ err: answerError }">{{ answerStatus }}</span>
+          </div>
+        </div>
+
+        <hr class="card-divider" />
+
+        <div class="cred-form">
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">来电录音时长（面板接管）</span>
+              <span class="setting-desc">
+                板子自己的“接听并录音”只会录固定 15 秒，管理页也没有地方改。
+                打开后由面板抢在板子前面接听并录音，最长 60 秒；面板不在线时仍由板子兜底接听。
+              </span>
+            </div>
+            <button
+              class="theme-toggle"
+              :class="{ active: autoRecordEnabled }"
+              @click="toggleAutoRecord"
+            >
+              <span>{{ autoRecordEnabled ? '已开启' : '已关闭' }}</span>
+            </button>
+          </div>
+          <div class="answer-form">
+            <label class="cred-row compact">
+              <span class="setting-label">录音秒数</span>
+              <input
+                v-model.number="autoRecordSeconds"
+                type="number"
+                min="1"
+                max="60"
+                class="cred-input"
+                :disabled="!autoRecordEnabled"
+              />
+            </label>
+            <label class="cred-row compact">
+              <span class="setting-label">录完立即上传</span>
+              <select v-model="autoRecordUpload" class="cred-input" :disabled="!autoRecordEnabled">
+                <option :value="true">是</option>
+                <option :value="false">否（等通话结束再传）</option>
+              </select>
+            </label>
+            <button class="theme-toggle" :disabled="autoRecordBusy" @click="saveAutoRecordSettings">
+              <span>{{ autoRecordBusy ? '保存中…' : '保存录音设置' }}</span>
+            </button>
+          </div>
+          <p class="cred-hint">
+            上限是 60 秒：这是板子接听指令的录音参数能接受的最大值，填 120 也不会生效。
+            录音上限只停止录音，不会挂断通话；通话本身仍按上面的“最长秒数”结束。
+          </p>
+          <div class="cred-actions">
+            <span class="cred-state" :class="{ err: autoRecordError }">{{ autoRecordStatus }}</span>
           </div>
         </div>
       </div>
@@ -276,6 +328,7 @@ import { useTheme } from '../composables/useTheme'
 import { useDeviceActions } from '../composables/useDeviceActions'
 import {
   fetchAnswerConfig,
+  fetchAutoRecord,
   fetchDevicesPage,
   fetchRecordingConfig,
   fetchNotifySettings,
@@ -286,6 +339,7 @@ import {
   retryNotify,
   saveDeviceCredentialSetting,
   saveAnswerConfig,
+  saveAutoRecord,
   saveSimGuard,
   saveSimGuardMute,
   setupRecordings,
@@ -355,6 +409,13 @@ const answerBusy = ref(false)
 const answerStatus = ref('')
 const answerError = ref(false)
 const answerDevices = ref([])
+
+const autoRecordEnabled = ref(true)
+const autoRecordSeconds = ref(60)
+const autoRecordUpload = ref(true)
+const autoRecordBusy = ref(false)
+const autoRecordStatus = ref('')
+const autoRecordError = ref(false)
 
 const guardEnabled = ref(true)
 const guardItems = ref([])
@@ -551,6 +612,54 @@ async function loadAnswerConfig() {
   }
 }
 
+async function loadAutoRecord() {
+  try {
+    const resp = await fetchAutoRecord()
+    const data = resp.data || {}
+    autoRecordEnabled.value = data.enabled !== false
+    autoRecordSeconds.value = Number(data.seconds) || 60
+    autoRecordUpload.value = data.upload !== false
+    autoRecordStatus.value = ''
+    autoRecordError.value = false
+  } catch (e) {
+    autoRecordError.value = true
+    autoRecordStatus.value = '读取录音设置失败'
+  }
+}
+
+function toggleAutoRecord() {
+  autoRecordEnabled.value = !autoRecordEnabled.value
+  saveAutoRecordSettings()
+}
+
+async function saveAutoRecordSettings() {
+  if (autoRecordBusy.value) return
+  autoRecordBusy.value = true
+  autoRecordStatus.value = '保存中…'
+  try {
+    const seconds = Math.max(1, Math.min(60, Number(autoRecordSeconds.value) || 60))
+    autoRecordSeconds.value = seconds
+    const resp = await saveAutoRecord({
+      enabled: autoRecordEnabled.value,
+      seconds,
+      upload: autoRecordUpload.value,
+    })
+    const data = resp.data || {}
+    autoRecordEnabled.value = data.enabled !== false
+    autoRecordSeconds.value = Number(data.seconds) || seconds
+    autoRecordUpload.value = data.upload !== false
+    autoRecordError.value = false
+    autoRecordStatus.value = autoRecordEnabled.value
+      ? `已开启，来电录 ${autoRecordSeconds.value} 秒`
+      : '已关闭，来电按板子设置录音'
+  } catch (e) {
+    autoRecordError.value = true
+    autoRecordStatus.value = (e.response && e.response.data && e.response.data.detail) || '保存失败'
+  } finally {
+    autoRecordBusy.value = false
+  }
+}
+
 async function applyAnswerMode() {
   if (answerBusy.value) return
   const ids = answerDevice.value
@@ -736,6 +845,7 @@ onMounted(async () => {
     devicesStore.refresh(),
   ])
   loadAnswerConfig()
+  loadAutoRecord()
 })
 </script>
 
