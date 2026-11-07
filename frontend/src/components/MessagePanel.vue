@@ -16,6 +16,7 @@
         <PhoneInput
           :value="toPhone"
           :phones="savedPhones"
+          :entries="contactEntries"
           list-id="saved-phone-list"
           placeholder="收件人号码，发过一次就会记住"
           @update:value="emit('update:toPhone', $event)"
@@ -33,6 +34,7 @@
         <PhoneInput
           :value="dialPhone"
           :phones="savedPhones"
+          :entries="contactEntries"
           list-id="saved-phone-list"
           placeholder="拨打的号码"
           @update:value="emit('update:dialPhone', $event)"
@@ -43,15 +45,23 @@
     </div>
 
     <datalist id="saved-phone-list">
+      <option
+        v-for="entry in contactEntries"
+        :key="'c' + entry.phone"
+        :value="entry.phone"
+        :label="entry.name"
+      ></option>
       <option v-for="phone in savedPhones" :key="phone" :value="phone"></option>
     </datalist>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import SenderSelect from './SenderSelect.vue'
 import PhoneInput from './PhoneInput.vue'
 import { usePhonebook } from '../composables/usePhonebook'
+import { useContactsStore } from '../stores/contacts'
 
 defineProps({
   mode: { type: String, default: 'sms' },
@@ -78,6 +88,8 @@ const emit = defineEmits([
 ])
 
 const { savedPhones } = usePhonebook()
+const contactsStore = useContactsStore()
+const contactEntries = computed(() => contactsStore.entries)
 </script>
 
 <style scoped>

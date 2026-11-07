@@ -2,7 +2,7 @@
   <div ref="root" class="phone-field">
     <input
       class="form-input"
-      :class="{ 'has-saved': phones.length }"
+      :class="{ 'has-saved': hasMenu }"
       :value="value"
       :list="listId"
       :placeholder="placeholder"
@@ -10,26 +10,44 @@
       @input="$emit('update:value', $event.target.value)"
     />
     <button
-      v-if="phones.length"
+      v-if="hasMenu"
       type="button"
       :class="['saved-toggle', { open }]"
-      title="以前发过的号码，点一下填进来"
+      :title="contactEntries.length ? '打开通讯录和最近发过的号码' : '以前发过的号码，点一下填进来'"
       @click.stop="open = !open"
     >
-      常用
+      {{ contactEntries.length ? '联系人' : '常用' }}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
         <path d="M6 9l6 6 6-6" />
       </svg>
     </button>
     <div v-if="open" class="saved-menu">
-      <button
-        v-for="phone in phones"
-        :key="phone"
-        type="button"
-        class="saved-item"
-        :title="showsFull ? phone : '关掉顶部遮挡可看完整号码'"
-        @click="pick(phone)"
-      >{{ label(phone) }}</button>
+      <template v-if="contactEntries.length">
+        <div class="menu-section">通讯录</div>
+        <button
+          v-for="entry in contactEntries"
+          :key="'c' + entry.phone"
+          type="button"
+          class="saved-item with-name"
+          :title="showsFull ? entry.phone : '关掉顶部遮挡可看完整号码'"
+          @click="pick(entry.phone)"
+        >
+          <span class="item-name">{{ entry.name }}</span>
+          <span class="item-phone">{{ label(entry.phone) }}</span>
+          <span v-if="entry.label" class="item-tag">{{ entry.label }}</span>
+        </button>
+      </template>
+      <template v-if="recentPhones.length">
+        <div v-if="contactEntries.length" class="menu-section">最近使用</div>
+        <button
+          v-for="phone in recentPhones"
+          :key="'r' + phone"
+          type="button"
+          class="saved-item"
+          :title="showsFull ? phone : '关掉顶部遮挡可看完整号码'"
+          @click="pick(phone)"
+        >{{ label(phone) }}</button>
+      </template>
     </div>
   </div>
 </template>
@@ -37,10 +55,14 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { masked } from '../stores/privacy'
+import { maskPhone, phoneKey } from '../utils/phone'
 
 const props = defineProps({
   value: { type: String, default: '' },
   phones: { type: Array, default: () => [] },
+  // Server-side address book rows: {name, phone, label}. Kept separate from
+  // `phones` (local recents) so the menu can label the two groups.
+  entries: { type: Array, default: () => [] },
   placeholder: { type: String, default: '' },
   listId: { type: String, default: '' }
 })
@@ -50,12 +72,18 @@ const root = ref(null)
 const open = ref(false)
 const showsFull = computed(() => !masked.value)
 
-// Keep the last four digits so two numbers from the same operator stay
-// distinguishable while screenshot mode is on.
+const contactEntries = computed(() => (props.entries || []).filter(e => e && e.phone))
+
+// Recents that already belong to a contact would otherwise show up twice.
+const recentPhones = computed(() => {
+  const known = new Set(contactEntries.value.map(e => phoneKey(e.phone)))
+  return (props.phones || []).filter(p => p && !known.has(phoneKey(p)))
+})
+
+const hasMenu = computed(() => contactEntries.value.length > 0 || recentPhones.value.length > 0)
+
 function label(phone) {
-  const value = String(phone || '')
-  if (!masked.value || value.length < 8) return value
-  return `${value.slice(0, 3)}****${value.slice(-4)}`
+  return masked.value ? maskPhone(phone) : String(phone || '')
 }
 
 function pick(phone) {
@@ -133,4 +161,37 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .saved-item:hover { background: var(--bg-input); color: var(--primary); }
+.menu-section {
+  padding: 6px 10px 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.saved-item.with-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+}
+.saved-item .item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.saved-item .item-phone {
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.saved-item .item-tag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-input);
+  color: var(--text-muted);
+  font-size: 11px;
+}
 </style>

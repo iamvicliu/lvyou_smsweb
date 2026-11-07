@@ -352,3 +352,27 @@ export function fetchNotifyHealth(hours = 24) {
 export function retryNotify() {
   return api.post('/api/notify/retry').then(r => r.data)
 }
+
+// ── address book ────────────────────────────────────────────────────────────
+// Stored server-side (contacts / contact_phones) so a number typed on one
+// browser is still there on another one, and so SMS/call rows can resolve a
+// name instead of showing a bare number.
+export function fetchContacts(q = '') {
+  return api.get('/api/contacts', { params: q ? { q } : {} })
+}
+
+export function createContact(payload) {
+  return api.post('/api/contacts', payload)
+}
+
+export function updateContact(id, payload) {
+  return api.put('/api/contacts/' + id, payload)
+}
+
+export function deleteContact(id) {
+  return api.delete('/api/contacts/' + id)
+}
+
+export function setContactFavorite(id, favorite) {
+  return api.post('/api/contacts/' + id + '/favorite', { favorite })
+}

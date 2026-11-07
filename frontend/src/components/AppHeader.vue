@@ -15,6 +15,7 @@
     <nav class="header-nav">
       <button :class="['nav-link', { active: route.path === '/dashboard' }]" @click="router.push('/dashboard')">设备</button>
       <button :class="['nav-link', { active: route.path === '/numbers' }]" @click="router.push('/numbers')">号码</button>
+      <button :class="['nav-link', { active: route.path === '/contacts' }]" @click="router.push('/contacts')">通讯录</button>
       <button :class="['nav-link', { active: route.path === '/messages' }]" @click="router.push('/messages')">短信</button>
       <button :class="['nav-link', { active: route.path === '/calls' }]" @click="router.push('/calls')">通话</button>
       <button :class="['nav-link', { active: route.path === '/settings' }]" @click="router.push('/settings')">设置</button>

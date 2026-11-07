@@ -29,7 +29,10 @@
             <span class="item-time">{{ shortTime(row.sms_time) }}</span>
             <span class="item-dev">{{ shortName(row.device_name) }}</span>
             <span class="item-sim">{{ simLabel(row.sim_slot, row.sim_number) }}</span>
-            <span class="item-num">{{ maskText(row.phone) }}</span>
+            <span class="item-num">
+              <b v-if="contactName(row.phone)" class="item-name">{{ contactName(row.phone) }}</b>
+              <span :class="{ 'item-phone-muted': contactName(row.phone) }">{{ maskText(row.phone) }}</span>
+            </span>
           </div>
           <SmsContent
             class="item-body"
@@ -53,6 +56,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import SmsContent from './SmsContent.vue'
 import { fetchSmsHistory } from '../api/endpoints'
+import { useContactsStore } from '../stores/contacts'
 import { maskText, simLabel } from '../utils/format'
 
 const LIMIT = 8
@@ -64,6 +68,7 @@ const CLAMP_OVER = 140
 const POLL_MS = 10000
 
 const router = useRouter()
+const contactsStore = useContactsStore()
 const items = ref([])
 const loaded = ref(false)
 const error = ref(false)
@@ -72,6 +77,10 @@ const freshIds = ref(new Set())
 
 let timer = null
 let firstLoad = true
+
+function contactName(phone) {
+  return contactsStore.nameOf(phone)
+}
 
 // "X31-第三排" -> "第三排": the model prefix repeats on every row and pushes
 // the number out of a 280px rail.
@@ -135,6 +144,7 @@ function onVisible() {
 }
 
 onMounted(() => {
+  contactsStore.ensureLoaded().catch(() => {})
   nextTick(load)
   timer = setInterval(load, POLL_MS)
   document.addEventListener('visibilitychange', onVisible)
@@ -239,14 +249,26 @@ onUnmounted(() => {
 .item-dev { color: var(--text-secondary); flex: 1 1 auto; min-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item-num {
   margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--text-muted);
-  flex: none;
   max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
+.item-name {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-primary);
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-phone-muted { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
 .item-body {
   margin-top: 5px;
   font-size: 12.5px;

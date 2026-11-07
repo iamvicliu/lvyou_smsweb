@@ -39,7 +39,7 @@
             <option value="received">收到</option>
             <option value="sent">发出</option>
           </select>
-          <input v-model="q" class="search-input" placeholder="搜索号码 / 内容" @keyup.enter="reload" />
+          <input v-model="q" class="search-input" placeholder="搜索姓名 / 号码 / 内容" @keyup.enter="reload" />
         </div>
         <button class="toolbar-btn" @click="reload">查询</button>
         <button
@@ -83,7 +83,10 @@
                     {{ row.direction === 'received' ? '收到' : '发出' }}
                   </span>
                 </td>
-                <td class="mono nowrap">{{ maskText(row.phone) }}</td>
+                <td class="phone-cell">
+                  <span v-if="contactName(row.phone)" class="contact-name">{{ contactName(row.phone) }}</span>
+                  <span class="mono nowrap">{{ maskText(row.phone) }}</span>
+                </td>
                 <td class="content">
                   <SmsContent
                     :content="row.content"
@@ -111,6 +114,7 @@
               <span class="sep">·</span>
               <span>{{ maskText(simLabel(row.sim_slot, row.sim_number)) }}</span>
               <span class="sep">·</span>
+              <span v-if="contactName(row.phone)" class="contact-name">{{ contactName(row.phone) }}</span>
               <span class="mono">{{ maskText(row.phone) }}</span>
             </div>
             <SmsContent
@@ -143,6 +147,7 @@
             @click="openThread(t.phone)"
           >
             <span class="thread-main">
+              <span v-if="contactName(t.phone)" class="contact-name">{{ contactName(t.phone) }}</span>
               <span class="thread-phone mono">{{ maskText(t.phone || '未知号码') }}</span>
               <span class="thread-preview">{{ t.last_content || '-' }}</span>
             </span>
@@ -157,6 +162,7 @@
         <div v-if="activePhone !== null" class="thread-panel">
           <div class="thread-head">
             <button class="thread-back" title="返回会话列表" @click="closeThread">←</button>
+            <span v-if="contactName(activePhone)" class="contact-name">{{ contactName(activePhone) }}</span>
             <span class="mono">{{ maskText(activePhone || '未知号码') }}</span>
             <span class="thread-head-count">{{ threadItems.length }} 条</span>
           </div>
@@ -192,7 +198,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore, useDevicesStore } from '../stores'
+import { useAuthStore, useContactsStore, useDevicesStore } from '../stores'
 import AppHeader from '../components/AppHeader.vue'
 import Pagination from '../components/Pagination.vue'
 import SmsContent from '../components/SmsContent.vue'
@@ -210,7 +216,12 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const devicesStore = useDevicesStore()
+const contactsStore = useContactsStore()
 const { isDark, toggleTheme } = useTheme()
+
+function contactName(phone) {
+  return contactsStore.nameOf(phone)
+}
 
 const loading = ref(false)
 const syncing = ref(false)
@@ -399,6 +410,7 @@ async function handleLogout() {
 let timer = null
 
 onMounted(async () => {
+  contactsStore.ensureLoaded().catch(() => {})
   if (!(await authStore.restore())) {
     router.push('/login')
     return

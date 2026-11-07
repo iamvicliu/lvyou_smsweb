@@ -607,6 +607,17 @@ body {
 .numbers-table tr { transition: background var(--transition); }
 .numbers-table tbody tr:hover { background: var(--bg-card-hover); }
 .mono { font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace; }
+/* Address-book name above the number in the SMS / call tables. */
+.contact-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ── Modal ── */
 .modal-overlay {

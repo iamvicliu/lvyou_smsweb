@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTheme } from './composables/useTheme'
+import ToastContainer from './components/ToastContainer.vue'
 
 const router = useRouter()
 const { loadTheme } = useTheme()
@@ -18,6 +19,7 @@ onMounted(() => {
         <component :is="Component" />
       </transition>
     </router-view>
+    <ToastContainer />
   </div>
 </template>
 

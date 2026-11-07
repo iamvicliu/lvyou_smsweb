@@ -279,6 +279,36 @@ class PushPending(Base):
     error    = Column(String(255), default="")
 
 
+class Contact(Base):
+    """One person in the operator's address book.
+
+    Numbers used to live only in the browser's localStorage, so another
+    browser (or a cleared cache) lost them. Contacts are stored here instead,
+    which also lets the SMS and call views show a name next to a number.
+    """
+    __tablename__ = "contacts"
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    name     = Column(String(64), default="", index=True)
+    note     = Column(Text, default="")
+    favorite = Column(Integer, default=0, index=True)
+    created  = Column(BigInteger, default=0)
+    updated  = Column(BigInteger, default=0)
+
+
+class ContactPhone(Base):
+    """One number of one contact.
+
+    ``phone`` is unique across the table: the send/dial suggestions must not
+    offer the same number under two different names.
+    """
+    __tablename__ = "contact_phones"
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    contact_id = Column(Integer, index=True, nullable=False)
+    phone      = Column(String(32), unique=True, index=True, default="")
+    label      = Column(String(16), default="手机")
+    sort       = Column(Integer, default=0)
+
+
 def _create_all_with_retry(attempts: int = 6) -> None:
     """Create tables, tolerating the v4/v6 startup race.
 

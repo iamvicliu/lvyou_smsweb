@@ -489,7 +489,7 @@ def _configure_cors(_app: FastAPI) -> None:
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         # FIX(P2#1): allow X-CSRF-Token so the SPA can attach the double-
         # submit value on cross-origin state-changing requests.
         allow_headers=["Authorization", "Content-Type", CSRF_HEADER_NAME],
@@ -924,6 +924,7 @@ from backend.routes.settings import router as settings_router
 from backend.routes.messages import router as messages_router
 from backend.routes.recordings import router as recordings_router
 from backend.routes.control import router as control_router
+from backend.routes.contacts import router as contacts_router
 from backend.routes import auth as _auth_mod
 from backend.routes import devices as _devices_mod
 from backend.routes import scan as _scan_mod
@@ -998,6 +999,7 @@ app.include_router(settings_router)
 app.include_router(messages_router)
 app.include_router(recordings_router)
 app.include_router(control_router)
+app.include_router(contacts_router)
 
 from backend.routes import overview as _overview_routes  # noqa: E402
 app.include_router(_overview_routes.router)

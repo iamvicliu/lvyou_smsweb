@@ -10,7 +10,10 @@
       <div class="live-main">
         <div class="live-info">
           <span class="live-device">{{ call.device_name }} · 卡槽 {{ call.slot }}</span>
-          <span class="live-phone mono">{{ maskText(call.phone) || '未知号码' }}</span>
+          <span class="live-phone mono">
+            <b v-if="contactName(call.phone)" class="live-name">{{ contactName(call.phone) }}</b>
+            <span :class="{ 'live-phone-muted': contactName(call.phone) }">{{ maskText(call.phone) || '未知号码' }}</span>
+          </span>
         </div>
         <div class="live-state">
           <span :class="['tag', call.state === 'answered' ? 'ok' : 'warn']">{{ stateLabel(call) }}</span>
@@ -84,10 +87,12 @@
 <script setup>
 import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { controlPhone, fetchAnswerMode, fetchLiveCalls, setAnswerMode } from '../api/endpoints'
+import { useContactsStore } from '../stores/contacts'
 import { maskText } from '../utils/format'
 
 const emit = defineEmits(['refresh'])
 
+const contactsStore = useContactsStore()
 const calls = ref([])
 const busy = reactive({})
 const status = reactive({})
@@ -99,6 +104,10 @@ const answerModes = reactive({})
 const answerLoading = reactive({})
 
 let timer = null
+
+function contactName(phone) {
+  return contactsStore.nameOf(phone)
+}
 
 function stateLabel(call) {
   return { ringing: '响铃中', answered: '通话中', dialing: '呼出中' }[call.state] || call.state
@@ -268,6 +277,7 @@ async function loadNow() {
 }
 
 onMounted(() => {
+  contactsStore.ensureLoaded().catch(() => {})
   loadNow()
   timer = setInterval(loadNow, 5000)
 })
@@ -299,7 +309,9 @@ onUnmounted(() => {
 .live-main { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .live-info { display: flex; flex-direction: column; gap: 2px; }
 .live-device { font-size: 12px; color: var(--text-muted, #94a3b8); }
-.live-phone { font-size: 16px; font-weight: 600; }
+.live-phone { font-size: 16px; font-weight: 600; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.live-name { font-family: var(--font-body, system-ui, sans-serif); font-size: 16px; color: var(--text-primary, #f1f5f9); }
+.live-phone-muted { font-size: 13px; font-weight: 500; color: var(--text-muted, #94a3b8); }
 .live-state { display: flex; align-items: center; gap: 10px; }
 .live-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .live-actions .btn-confirm, .live-actions .btn-secondary { flex: 0 0 auto; width: auto; }

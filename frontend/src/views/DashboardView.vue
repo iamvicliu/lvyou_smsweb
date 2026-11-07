@@ -154,10 +154,11 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import {
   useAuthStore,
+  useContactsStore,
   useDevicesStore,
   useDialogStore,
   useNoticeStore,
@@ -229,6 +230,7 @@ async function refreshAll() {
 }
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const devicesStore = useDevicesStore()
 const scanStore = useScanStore()
@@ -252,6 +254,7 @@ const {
 const { scanning } = storeToRefs(scanStore)
 
 const loading = useLoading()
+const contactsStore = useContactsStore()
 const { clearNotice, setNotice } = useNotice()
 const { isDark, toggleTheme } = useTheme()
 
@@ -409,6 +412,16 @@ useKeyboardShortcuts(shortcuts)
 
 onMounted(async () => {
   loading.value = true
+  // Suggestion names only; a failed fetch must not block the dashboard.
+  contactsStore.ensureLoaded().catch(() => {})
+  // The contact book's "发短信"/"拨号" buttons land here with ?to=<number>;
+  // prefill the recipient and switch the tab, the sender card is still the
+  // operator's choice.
+  const presetTo = String(route.query.to || '').trim()
+  if (presetTo) {
+    toPhone.value = presetTo
+    commMode.value = route.query.mode === 'dial' ? 'dial' : 'sms'
+  }
   try {
     if (await authStore.restore()) {
       await devicesStore.refresh()

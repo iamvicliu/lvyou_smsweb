@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 from backend.db import (
     CallRecord,
     CallRecording,
+    Contact,
+    ContactPhone,
     Device,
     SessionLocal,
     SmsJob,
@@ -43,6 +45,24 @@ from backend.settings_store import device_credential
 logger = logging.getLogger("board-manager")
 
 router = APIRouter()
+
+
+def _contact_phones(db: Session, q: str) -> list:
+    """Numbers belonging to contacts whose name matches the search box."""
+    rows = (
+        db.query(ContactPhone.phone)
+        .join(Contact, Contact.id == ContactPhone.contact_id)
+        .filter(Contact.name.like(f"%{q}%"))
+        .all()
+    )
+    out = set()
+    for (phone,) in rows:
+        out.add(phone)
+        # History rows keep whatever prefix the board/operator reported, so a
+        # bare mainland number has to match its 86/+86/0086 forms as well.
+        if len(phone) == 11 and phone.startswith("1"):
+            out.update({f"86{phone}", f"+86{phone}", f"0086{phone}"})
+    return list(out)
 
 
 def _device_label(db: Session, device_id: Optional[int], dev_id: str) -> str:
@@ -157,7 +177,15 @@ def api_sms_history(
         query = query.filter(SmsRecord.direction == direction)
     if q:
         like = f"%{q}%"
-        query = query.filter(SmsRecord.phone.like(like) | SmsRecord.content.like(like))
+        conds = [SmsRecord.phone.like(like), SmsRecord.content.like(like)]
+        # Typing a contact's name should find their messages too, not just
+        # the digits.
+        phones = _contact_phones(db, q)
+        if phones:
+            conds.append(SmsRecord.phone.in_(phones))
+        from sqlalchemy import or_
+
+        query = query.filter(or_(*conds))
     total = query.count()
     rows = (
         query.order_by(SmsRecord.event_ts.desc(), SmsRecord.id.desc())
@@ -206,7 +234,13 @@ def api_sms_threads(
         base = base.filter(SmsRecord.device_id == device_id)
     if q:
         like = f"%{q}%"
-        base = base.filter(SmsRecord.phone.like(like) | SmsRecord.content.like(like))
+        conds = [SmsRecord.phone.like(like), SmsRecord.content.like(like)]
+        phones = _contact_phones(db, q)
+        if phones:
+            conds.append(SmsRecord.phone.in_(phones))
+        from sqlalchemy import or_
+
+        base = base.filter(or_(*conds))
 
     grouped = (
         base.with_entities(
@@ -325,7 +359,13 @@ def api_call_history(
     if direction in ("incoming", "outgoing"):
         query = query.filter(CallRecord.direction == direction)
     if q:
-        query = query.filter(CallRecord.phone.like(f"%{q}%"))
+        from sqlalchemy import or_
+
+        conds = [CallRecord.phone.like(f"%{q}%")]
+        phones = _contact_phones(db, q)
+        if phones:
+            conds.append(CallRecord.phone.in_(phones))
+        query = query.filter(or_(*conds))
     total = query.count()
     rows = (
         query.order_by(CallRecord.event_ts.desc(), CallRecord.id.desc())

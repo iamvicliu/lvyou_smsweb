@@ -26,7 +26,7 @@
             <option value="incoming">呼入</option>
             <option value="outgoing">呼出</option>
           </select>
-          <input v-model="q" class="search-input" placeholder="搜索号码" @keyup.enter="reload" />
+          <input v-model="q" class="search-input" placeholder="搜索姓名 / 号码" @keyup.enter="reload" />
         </div>
         <button class="toolbar-btn" @click="reload">查询</button>
         <button
@@ -68,7 +68,10 @@
               <td>{{ row.device_name }}</td>
               <td>{{ maskText(simLabel(row.sim_slot, row.sim_number)) }}</td>
               <td>{{ row.direction === 'incoming' ? '呼入' : '呼出' }}</td>
-              <td class="mono nowrap">{{ maskText(row.phone) }}</td>
+              <td class="phone-cell">
+                <span v-if="contactName(row.phone)" class="contact-name">{{ contactName(row.phone) }}</span>
+                <span class="mono nowrap">{{ maskText(row.phone) }}</span>
+              </td>
               <td><span :class="['tag', tagClass(row.action)]">{{ actionLabel(row.action) }}</span></td>
               <td class="nowrap">{{ formatDuration(rowDuration(row)) }}</td>
               <td>
@@ -104,6 +107,7 @@
             <span class="sep">·</span>
             <span>{{ maskText(simLabel(row.sim_slot, row.sim_number)) }}</span>
             <span class="sep">·</span>
+            <span v-if="contactName(row.phone)" class="contact-name">{{ contactName(row.phone) }}</span>
             <span class="mono">{{ maskText(row.phone) }}</span>
             <span class="sep">·</span>
             <span>{{ row.direction === 'incoming' ? '呼入' : '呼出' }}</span>
@@ -142,7 +146,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore, useDevicesStore } from '../stores'
+import { useAuthStore, useContactsStore, useDevicesStore } from '../stores'
 import AppHeader from '../components/AppHeader.vue'
 import Pagination from '../components/Pagination.vue'
 import LiveCallPanel from '../components/LiveCallPanel.vue'
@@ -162,7 +166,12 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const devicesStore = useDevicesStore()
+const contactsStore = useContactsStore()
 const { isDark, toggleTheme } = useTheme()
+
+function contactName(phone) {
+  return contactsStore.nameOf(phone)
+}
 
 const loading = ref(false)
 const syncing = ref(false)
@@ -320,6 +329,7 @@ async function handleLogout() {
 }
 
 onMounted(async () => {
+  contactsStore.ensureLoaded().catch(() => {})
   if (!(await authStore.restore())) {
     router.push('/login')
     return

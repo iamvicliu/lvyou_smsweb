@@ -155,6 +155,12 @@
           </div>
 
           <datalist id="detail-phone-list">
+            <option
+              v-for="entry in contactEntries"
+              :key="'c' + entry.phone"
+              :value="entry.phone"
+              :label="entry.name"
+            ></option>
             <option v-for="phone in savedPhones" :key="phone" :value="phone"></option>
           </datalist>
 
@@ -171,6 +177,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useContactsStore } from '../stores/contacts'
 import {
   controlSimSlot,
   fetchDeviceHealth,
@@ -192,6 +199,8 @@ const emit = defineEmits([
 ])
 
 const device = computed(() => props.detail.device || {})
+const contactsStore = useContactsStore()
+const contactEntries = computed(() => contactsStore.entries)
 
 const health = ref(null)
 const healthLoading = ref(false)
