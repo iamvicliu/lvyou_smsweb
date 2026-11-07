@@ -4,16 +4,13 @@
       <h2>实时短信</h2>
       <span class="live-dot" :class="{ idle: !loaded }"></span>
       <span class="live-text">{{ headText }}</span>
-      <div class="feed-tools">
-        <button
-          class="feed-refresh"
-          :class="{ spinning: refreshing }"
-          :disabled="refreshing"
-          title="立即从面板数据库重新读取最新短信"
-          @click="manualRefresh"
-        >刷新</button>
-        <button class="feed-link" title="打开短信记录页" @click="goAll">全部 →</button>
-      </div>
+      <button
+        class="feed-refresh"
+        :class="{ spinning: refreshing }"
+        :disabled="refreshing"
+        title="立即从面板数据库重新读取最新短信"
+        @click="manualRefresh"
+      >刷新</button>
     </div>
 
     <div class="feed-list" :class="{ empty: !items.length }">
@@ -224,22 +221,17 @@ onUnmounted(() => {
   cursor: pointer;
   padding: 2px 0;
 }
-.feed-tools {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.feed-tools .feed-link { margin-left: 0; }
 .feed-refresh {
+  margin-left: 2px;
+  padding: 2px 6px;
+  border-radius: 5px;
   background: none;
   border: none;
   color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
-  padding: 2px 0;
 }
-.feed-refresh:hover { color: var(--primary); }
+.feed-refresh:hover { color: var(--primary); background: var(--hover-bg, rgba(0, 0, 0, 0.04)); }
 .feed-refresh:disabled { opacity: 0.55; cursor: default; }
 .feed-refresh.spinning { color: var(--primary); }
 .feed-link:hover { color: var(--primary-dark); text-decoration: underline; }
