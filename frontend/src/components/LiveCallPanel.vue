@@ -99,6 +99,9 @@ const status = reactive({})
 const recording = reactive({})
 const ttsText = reactive({})
 const dtmfKeys = reactive({})
+// Rows the operator hung up stay hidden while the board's 603 push is in
+// flight, so the 2 s refresh does not put the line back on screen.
+const suppressed = new Set()
 // deviceId -> { "1": {mode, mode_label, ring, paused_mode}, "2": {...} }
 const answerModes = reactive({})
 const answerLoading = reactive({})
@@ -231,6 +234,7 @@ async function send(call, action, extra = {}) {
       emit('refresh')
     }
     if (ok && action === 'hangup') {
+      suppressed.add(call.id)
       calls.value = calls.value.filter(item => item.id !== call.id)
     }
     if (ok) load(2000)
@@ -266,7 +270,7 @@ async function load(delay = 0) {
 async function loadNow() {
   try {
     const data = await fetchLiveCalls()
-    const items = (data && data.items) || []
+    const items = ((data && data.items) || []).filter(item => !suppressed.has(item.id))
     calls.value = items.map(item => {
       const previous = calls.value.find(c => c.id === item.id)
       return previous ? { ...previous, ...item } : item

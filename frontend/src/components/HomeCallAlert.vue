@@ -56,6 +56,10 @@ const contactsStore = useContactsStore()
 const calls = ref([])
 const busy = reactive({})
 const status = reactive({})
+// A hangup the operator just pressed must stay gone while the board's final
+// 603 push is in flight; the row is keyed by record id, so a new call still
+// shows up immediately.
+const suppressed = new Set()
 
 const ringing = computed(() => calls.value.some(call => call.state === 'ringing'))
 
@@ -83,7 +87,7 @@ function elapsedText(state, value) {
 async function loadNow() {
   try {
     const data = await fetchLiveCalls()
-    calls.value = (data && data.items) || []
+    calls.value = ((data && data.items) || []).filter(item => !suppressed.has(item.id))
   } catch {
     // Keep the previous banner on a transient read failure; the next tick
     // retries in five seconds.
@@ -99,6 +103,7 @@ async function act(call, action) {
       throw new Error((r && r.note) || '板子没有接受这条指令')
     }
     if (action === 'hangup') {
+      suppressed.add(call.id)
       calls.value = calls.value.filter(item => item.id !== call.id)
     } else {
       call.state = 'answered'

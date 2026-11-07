@@ -624,6 +624,14 @@ def api_tel_control(req: PhoneControlReq, db: Session = Depends(get_db)):
         device, f"tel:{action}:slot{req.slot}",
         _call(device, token, cmd, params, timeout=15),
     )
+    if action == "hangup" and result.get("ok"):
+        # The board's final 603 push can arrive late or never. Without this
+        # marker the dashboard would pull the same row back from /api/tel/live
+        # five seconds after the operator pressed 挂断.
+        from backend.messages import set_setting
+
+        set_setting(db, f"call_closed:{device.id}:{req.slot}", str(int(time.time())))
+        db.commit()
     # Keep the exact board parameters out of the browser response; they can
     # contain a TTS transcript or a phone number.
     result.pop("response", None)
@@ -689,11 +697,23 @@ def api_tel_live(db: Session = Depends(get_db)):
     max_age = {"ringing": 90, "dialing": 90, "answered": 130}
     seen = set()
     items = []
+    from backend.messages import get_setting
+
     for row in rows:
         key = (row.device_id, row.sim_slot)
         if key in seen:
             continue
         seen.add(key)
+        slot_no = int(str(row.sim_slot or "sim1").replace("sim", "") or 1)
+        closed_raw = get_setting(db, f"call_closed:{row.device_id}:{slot_no}", "")
+        try:
+            closed_ts = int(closed_raw or 0)
+        except (TypeError, ValueError):
+            closed_ts = 0
+        if closed_ts and int(row.event_ts or row.start_ts or 0) <= closed_ts:
+            # The operator hung this line up already; the board's late push
+            # must not resurrect the banner.
+            continue
         event = _event_type(row.raw_json or "")
         state = active_types.get(event)
         if not state:
@@ -707,7 +727,7 @@ def api_tel_live(db: Session = Depends(get_db)):
             "id": row.id,
             "device_id": row.device_id,
             "device_name": _device_label(device) if device else (row.dev_id or "-"),
-            "slot": int(str(row.sim_slot or "sim1").replace("sim", "") or 1),
+            "slot": slot_no,
             "phone": row.phone,
             "direction": row.direction,
             "state": state,
