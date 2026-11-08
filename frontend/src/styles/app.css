@@ -1,5 +1,9 @@
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* A long record table makes the page scrollable; on systems with classic
+   scrollbars that used to shrink the whole layout right after loading. */
+html { scrollbar-gutter: stable; }
+
 :root {
   --primary: #3b82f6;
   --primary-dark: #2563eb;
@@ -440,7 +444,15 @@ select {
   color: var(--text-primary);
   white-space: nowrap;
 }
-.panel-title b { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.panel-title b {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  /* Reserve room for 4 digits so "0" -> "308" does not push the tabs and
+     filters sideways when the records arrive. */
+  display: inline-block;
+  min-width: 4ch;
+}
 .records-panel {
   background: var(--bg-card);
   border: 1px solid var(--border);
