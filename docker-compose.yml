@@ -2,7 +2,8 @@ version: '3.8'
 
 services:
   lvyou-smsweb:
-    image: lovexme/lvyou-smsweb:latest
+    build: .
+    image: lvyou-smsweb:local
     container_name: lvyou-smsweb
     restart: unless-stopped
     network_mode: host  # 必须使用 host 网络模式才能扫描局域网
