@@ -10,7 +10,7 @@
         :disabled="refreshing"
         title="立即从面板数据库重新读取最新短信"
         @click="manualRefresh"
-      >刷新</button>
+      >{{ refreshing ? '刷新中…' : '立即刷新' }}</button>
     </div>
 
     <div class="feed-list" :class="{ empty: !items.length }">
@@ -222,18 +222,19 @@ onUnmounted(() => {
   padding: 2px 0;
 }
 .feed-refresh {
-  margin-left: 2px;
-  padding: 2px 6px;
-  border-radius: 5px;
-  background: none;
-  border: none;
-  color: var(--text-muted);
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary-soft, rgba(59, 130, 246, 0.12));
+  border: 1px solid transparent;
+  color: var(--primary);
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
 }
-.feed-refresh:hover { color: var(--primary); background: var(--hover-bg, rgba(0, 0, 0, 0.04)); }
+.feed-refresh:hover { border-color: var(--primary); background: transparent; }
 .feed-refresh:disabled { opacity: 0.55; cursor: default; }
-.feed-refresh.spinning { color: var(--primary); }
+.feed-refresh.spinning { opacity: 0.7; }
 .feed-link:hover { color: var(--primary-dark); text-decoration: underline; }
 .feed-list {
   display: flex;

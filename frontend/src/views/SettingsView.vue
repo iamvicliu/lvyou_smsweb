@@ -104,8 +104,15 @@
             </button>
             <span class="cred-state" :class="{ err: barkError }">{{ barkStatus }}</span>
           </div>
+          <div v-if="barkUrlCurrent" class="bark-current">
+            <span class="setting-label">当前推送地址</span>
+            <code class="bark-current-url">{{ barkUrlCurrent }}</code>
+            <button class="mini-btn ghost" @click="copyBarkUrl">
+              {{ barkCopied ? '已复制' : '复制' }}
+            </button>
+          </div>
           <p class="cred-hint">
-            收到短信、短信发出/失败/送达时推送到 iPhone。地址含设备 Key，保存后只显示域名，不会再回显完整链接。
+            收到短信、短信发出/失败/送达时推送到 iPhone。地址含设备 Key，只有这个设置页能看到完整链接。
           </p>
           <div v-if="pushStats" class="push-health">
             <span :class="['push-dot', pushStats.fail ? 'warn' : 'ok']"></span>
@@ -366,11 +373,44 @@ const credError = ref(false)
 const barkUrl = ref('')
 const barkConfigured = ref(false)
 const barkHost = ref('')
+const barkUrlCurrent = ref('')
+const barkCopied = ref(false)
 const savingBark = ref(false)
 const barkStatus = ref('')
 const barkError = ref(false)
 const pushStats = ref(null)
 const retrying = ref(false)
+
+let copyTimer = null
+
+async function copyBarkUrl() {
+  const text = barkUrlCurrent.value
+  if (!text) return
+  let done = false
+  try {
+    await navigator.clipboard.writeText(text)
+    done = true
+  } catch {
+    // The panel runs over plain HTTP on the LAN, where the async clipboard
+    // API is unavailable; fall back to the legacy copy command.
+    const area = document.createElement('textarea')
+    area.value = text
+    area.style.position = 'fixed'
+    area.style.opacity = '0'
+    document.body.appendChild(area)
+    area.select()
+    try {
+      done = document.execCommand('copy')
+    } catch {
+      done = false
+    }
+    document.body.removeChild(area)
+  }
+  if (!done) return
+  barkCopied.value = true
+  clearTimeout(copyTimer)
+  copyTimer = setTimeout(() => { barkCopied.value = false }, 1500)
+}
 
 async function loadPushStats() {
   try {
@@ -706,6 +746,8 @@ async function loadNotify() {
     const data = resp.data || {}
     barkConfigured.value = !!data.bark_configured
     barkHost.value = data.bark_host || ''
+    barkUrlCurrent.value = data.bark_url || ''
+    barkCopied.value = false
     barkStatus.value = barkConfigured.value ? '已设置' : '未设置，短信不会推送'
     barkError.value = !barkConfigured.value
   } catch (e) {
@@ -857,10 +899,42 @@ onMounted(async () => {
 .card-divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
 .answer-form { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
 .answer-form .cred-row.compact { min-width: 120px; flex: 0 1 160px; }
-.answer-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
-.answer-row { display: flex; gap: 12px; font-size: 13px; flex-wrap: wrap; }
-.answer-name { color: var(--text-primary); min-width: 160px; }
-.answer-values { color: var(--text-secondary); }
+.answer-list { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.answer-row {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  padding: 5px 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.answer-name { color: var(--text-primary); min-width: 0; }
+.answer-values { color: var(--text-secondary); min-width: 0; }
+.answer-row .theme-toggle { padding: 6px 12px; justify-self: end; }
+.bark-current {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+}
+.bark-current .setting-label { grid-column: 1 / -1; grid-row: 1; color: var(--text-muted); }
+.bark-current-url {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.bark-current .mini-btn { grid-column: 2; grid-row: 2; align-self: center; }
 .settings-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -911,13 +985,14 @@ onMounted(async () => {
 .cred-form { display: flex; flex-direction: column; gap: 10px; }
 .cred-row { display: flex; flex-direction: column; gap: 5px; }
 .cred-input {
-  background: var(--bg-input);
+  background-color: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 8px 10px;
   color: var(--text-primary);
   font-size: 13px;
 }
+select.cred-input { padding-right: 30px; }
 .cred-input:focus { outline: none; border-color: var(--primary); }
 .cred-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
 .cred-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -946,5 +1021,9 @@ onMounted(async () => {
 @media (max-width: 640px) {
   .settings-view { padding: 14px; }
   .shortcut-grid { grid-template-columns: 1fr; }
+  .answer-row { grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; }
+  .answer-name { grid-column: 1; }
+  .answer-values { grid-column: 1 / -1; grid-row: 2; }
+  .answer-row .theme-toggle { grid-column: 2; grid-row: 1; }
 }
 </style>

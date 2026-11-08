@@ -419,6 +419,9 @@ def api_notify_get(db: Session = Depends(get_db)):
         "webhook_token_configured": bool(get_setting(db, KEY_WEBHOOK_TOKEN, "")),
         "bark_configured": bool(bark_url),
         "bark_host": _url_host(bark_url),
+        # The owner asked to see the address they configured; this endpoint is
+        # behind the panel login, same as the rest of the settings page.
+        "bark_url": bark_url,
     }
 
 

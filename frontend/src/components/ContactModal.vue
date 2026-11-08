@@ -133,7 +133,7 @@ function submit() {
 .field > label { font-size: 12px; color: var(--text-secondary); }
 .phone-row { display: flex; align-items: center; gap: 8px; }
 .phone-row .form-input { flex: 1; min-width: 0; }
-.label-select { width: 88px; flex: none; }
+.label-select { width: 96px; flex: none; padding: 10px 24px 10px 10px; }
 .row-remove {
   flex: none;
   width: 30px;

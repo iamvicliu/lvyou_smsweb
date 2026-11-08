@@ -407,9 +407,17 @@ async function handleLogout() {
 // Keyboard shortcuts
 const shortcuts = {
   'Ctrl+K': () => document.querySelector('.search-input')?.focus(),
-  'Space': () => { if (document.activeElement.tagName !== 'INPUT') toggleSelectAll() },
+  'Space': () => toggleSelectAll(),
   'Delete': () => { if (selectedCount.value > 0) batchDeleteSelected() },
-  'r': () => { if (document.activeElement.tagName !== 'INPUT') refreshAll() }
+  'r': () => refreshAll(),
+  // Close the topmost dialog that exposes a close button; confirm/prompt
+  // dialogs handle Escape themselves and have no close button.
+  'Escape': () => {
+    const overlays = document.querySelectorAll('.modal-overlay')
+    const top = overlays[overlays.length - 1]
+    const close = top && top.querySelector('.modal-close')
+    if (close) close.click()
+  }
 }
 useKeyboardShortcuts(shortcuts)
 
