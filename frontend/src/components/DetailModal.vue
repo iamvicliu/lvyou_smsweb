@@ -501,7 +501,7 @@ onMounted(() => {
 .maint-title { font-size: 12px; font-weight: 600; }
 .daily-row, .quick-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .switch { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
-.hour-select { width: auto; min-width: 110px; padding: 7px 30px 7px 10px; font-size: 13px; }
+.hour-select { width: auto; min-width: 110px; padding: 7px 34px 7px 10px; font-size: 13px; }
 .quick-row .form-input { flex: 1; min-width: 130px; padding: 7px 10px; font-size: 13px; }
 .saved-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .saved-chip {

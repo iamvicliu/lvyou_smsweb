@@ -321,7 +321,8 @@ body {
   background-color: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 10px 36px 10px 14px;
+  padding: 10px 40px 10px 16px;
+  min-width: 136px;
   color: var(--text-primary);
   outline: none;
   font-size: 14px;
@@ -337,9 +338,9 @@ select {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23808b9b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9.5 12 15.5 18 9.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 12px center;
+  background-position: right 14px center;
   background-size: 12px 12px;
-  padding-right: 34px;
+  padding-right: 38px;
 }
 .toolbar-btn {
   background: var(--bg-card);
@@ -390,7 +391,7 @@ select {
 }
 .panel-filters { display: flex; gap: 8px; flex: 1; min-width: 240px; flex-wrap: wrap; }
 .panel-filters .search-input { max-width: none; padding: 8px 12px 8px 34px; }
-.panel-filters .filter-select { padding: 8px 34px 8px 12px; }
+.panel-filters .filter-select { padding: 8px 38px 8px 14px; min-width: 136px; }
 .panel-select {
   display: inline-flex;
   align-items: center;
@@ -692,7 +693,7 @@ select {
   outline: none;
   transition: border-color var(--transition), box-shadow var(--transition);
 }
-select.form-input { padding-right: 34px; }
+select.form-input { padding-right: 38px; }
 .form-input:focus, .form-textarea-full:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-glow);
