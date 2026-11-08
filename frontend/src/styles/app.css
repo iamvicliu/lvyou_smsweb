@@ -1,8 +1,9 @@
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 /* A long record table makes the page scrollable; on systems with classic
-   scrollbars that used to shrink the whole layout right after loading. */
-html { scrollbar-gutter: stable; }
+   scrollbars that shrank the whole layout right after loading. The gutter is
+   only honoured once the root is an actual scroll container, so force it. */
+html { overflow-y: scroll; scrollbar-gutter: stable; }
 
 :root {
   --primary: #3b82f6;
