@@ -60,7 +60,8 @@
         </article>
       </div>
       <div v-else class="empty-row">
-        {{ loading ? '加载中…' : (q || onlyFavorite ? '没有匹配的联系人' : '还没有联系人，点右上角「添加联系人」') }}
+        <span v-if="loading" class="spinner spinner-muted"></span>
+        <span>{{ loading ? '正在读取联系人…' : (q || onlyFavorite ? '没有匹配的联系人' : '还没有联系人，点右上角「添加联系人」') }}</span>
       </div>
     </section>
 
@@ -102,7 +103,7 @@ const toast = useToast()
 
 const q = ref('')
 const onlyFavorite = ref(false)
-const loading = ref(false)
+const loading = ref(true)
 const saving = ref(false)
 const saveError = ref('')
 const showModal = ref(false)

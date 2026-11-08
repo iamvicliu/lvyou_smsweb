@@ -98,7 +98,10 @@
               </tr>
             </tbody>
           </table>
-          <div v-else class="empty-row">{{ loading ? '加载中…' : '暂无短信记录' }}</div>
+          <div v-else class="empty-row">
+            <span v-if="loading" class="spinner spinner-muted"></span>
+            <span>{{ loading ? '正在读取短信记录…' : '暂无短信记录' }}</span>
+          </div>
         </div>
 
         <div v-if="items.length" class="record-list">
@@ -156,7 +159,10 @@
               <span class="thread-count" :title="`共 ${t.total} 条，其中收到 ${t.received} 条`">{{ t.total }}</span>
             </span>
           </button>
-          <div v-if="!threads.length" class="empty-row">{{ loading ? '加载中…' : '暂无短信记录' }}</div>
+          <div v-if="!threads.length" class="empty-row">
+            <span v-if="loading" class="spinner spinner-muted"></span>
+            <span>{{ loading ? '正在读取会话…' : '暂无短信记录' }}</span>
+          </div>
         </div>
 
         <div v-if="activePhone !== null" class="thread-panel">
@@ -176,7 +182,10 @@
               <div class="bubble-meta">{{ m.sms_time }} · {{ m.device_name }} · {{ maskText(simLabel(m.sim_slot, m.sim_number)) }}</div>
               <div class="bubble">{{ m.content }}</div>
             </div>
-            <div v-if="!threadItems.length" class="empty-row">{{ threadLoading ? '加载中…' : '这个号码还没有记录' }}</div>
+            <div v-if="!threadItems.length" class="empty-row">
+              <span v-if="threadLoading" class="spinner spinner-muted"></span>
+              <span>{{ threadLoading ? '正在读取对话…' : '这个号码还没有记录' }}</span>
+            </div>
           </div>
         </div>
         <div v-else class="thread-placeholder">点左边的号码，查看这段对话</div>
@@ -223,7 +232,7 @@ function contactName(phone) {
   return contactsStore.nameOf(phone)
 }
 
-const loading = ref(false)
+const loading = ref(true)
 const syncing = ref(false)
 const exporting = ref(false)
 const mode = ref('list')
@@ -246,7 +255,7 @@ const threadTotal = ref(0)
 const threadPages = ref(0)
 const activePhone = ref(null)
 const threadItems = ref([])
-const threadLoading = ref(false)
+const threadLoading = ref(true)
 const threadOpenMobile = ref(false)
 
 function toggleExpand(id) {

@@ -93,7 +93,10 @@
             </template>
           </tbody>
         </table>
-        <div v-else class="empty-row">{{ loading ? '加载中…' : '暂无通话记录' }}</div>
+        <div v-else class="empty-row">
+          <span v-if="loading" class="spinner spinner-muted"></span>
+          <span>{{ loading ? '正在读取通话记录…' : '暂无通话记录' }}</span>
+        </div>
       </div>
 
       <div v-if="items.length" class="record-list">
@@ -173,7 +176,7 @@ function contactName(phone) {
   return contactsStore.nameOf(phone)
 }
 
-const loading = ref(false)
+const loading = ref(true)
 const syncing = ref(false)
 const exporting = ref(false)
 const q = ref('')

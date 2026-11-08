@@ -36,6 +36,7 @@ const routes = [
   },
   {
     path: '/messages',
+    alias: '/sms',
     name: 'Messages',
     component: () => import('../views/MessagesView.vue'),
     meta: { requiresAuth: true }
@@ -45,6 +46,11 @@ const routes = [
     name: 'Calls',
     component: () => import('../views/CallsView.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    // Unknown paths used to render a blank shell; send them somewhere useful.
+    path: '/:pathMatch(.*)*',
+    redirect: '/dashboard'
   }
 ]
 
